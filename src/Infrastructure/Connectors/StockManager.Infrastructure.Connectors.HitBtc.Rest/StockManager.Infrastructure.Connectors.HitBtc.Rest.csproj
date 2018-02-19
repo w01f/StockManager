@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="11.0.1" />
+    <PackageReference Include="RestSharp" Version="106.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Domain\StockManager.Domain.Core\StockManager.Domain.Core.csproj" />
+    <ProjectReference Include="..\..\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj" />
+    <ProjectReference Include="..\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
+  </ItemGroup>
+
+</Project>
