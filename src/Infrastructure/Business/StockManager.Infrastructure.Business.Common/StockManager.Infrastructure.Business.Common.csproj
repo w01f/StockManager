@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Domain\StockManager.Domain.Core\StockManager.Domain.Core.csproj" />
+    <ProjectReference Include="..\..\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
     <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
     <ProjectReference Include="..\..\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj" />
   </ItemGroup>

@@ -2,6 +2,8 @@
 using StockManager.Dashboard.Controllers;
 using StockManager.Dashboard.Views;
 using StockManager.Domain.Core.Repositories;
+using StockManager.Infrastructure.Analysis.Common.Services;
+using StockManager.Infrastructure.Analysis.Trady.Services;
 using StockManager.Infrastructure.Business.Common.Services;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
@@ -25,13 +27,16 @@ namespace StockManager.Dashboard
 			Bind<IMarketDataConnector>()
 				.To<MarketDataConnector>();
 
-			Bind<MarketDataService>()
+			Bind<IAnalysisService>()
+				.To<TradyAnalysisService>();
+
+			Bind<ChartService>()
 				.ToSelf();
 
 			Bind<MainController>()
 				.ToSelf()
 				.InSingletonScope();
-			Bind<MarketController>()
+			Bind<CurrencyPairController>()
 				.ToSelf()
 				.InSingletonScope();
 

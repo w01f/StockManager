@@ -21,7 +21,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			var response = await connection.DoRequest(request);
 			var currencyPairs = response
 				.ExtractData<CurrencyPair[]>()
-				.Select(entity => entity.ToModel())
+				.Select(entity => entity.ToOuterModel())
 				.ToList();
 			return currencyPairs;
 		}
@@ -69,7 +69,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			var response = await connection.DoRequest(request);
 			var candles = response
 				.ExtractData<Candle[]>()
-				.Select(entity => entity.ToModel())
+				.Select(entity => entity.ToOuterModel())
 				.ToList();
 
 			return candles;

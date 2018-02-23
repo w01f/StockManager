@@ -1,15 +1,24 @@
-﻿using Ninject;
+﻿using System.Collections.Generic;
+using System.Threading.Tasks;
+using Ninject;
+using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Dashboard.Controllers
 {
 	public class MainController
 	{
-		public MarketController Market { get; }
+		private readonly IMarketDataConnector _marketDataConnector;
 
 		[Inject]
-		public MainController(MarketController marketController)
+		public MainController(IMarketDataConnector marketDataConnector)
 		{
-			Market = marketController;
+			_marketDataConnector = marketDataConnector;
+		}
+
+		public async Task<IList<CurrencyPair>> GetCurrencyPairs()
+		{
+			return await _marketDataConnector.GetCurrensyPairs();
 		}
 	}
 }

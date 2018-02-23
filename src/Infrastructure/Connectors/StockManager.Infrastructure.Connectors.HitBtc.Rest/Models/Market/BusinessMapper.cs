@@ -2,7 +2,7 @@
 {
 	static class BusinessMapper
 	{
-		public static Infrastructure.Common.Models.Market.CurrencyPair ToModel(this CurrencyPair source)
+		public static Infrastructure.Common.Models.Market.CurrencyPair ToOuterModel(this CurrencyPair source)
 		{
 			var target = new Infrastructure.Common.Models.Market.CurrencyPair
 			{
@@ -18,7 +18,7 @@
 			return target;
 		}
 
-		public static Infrastructure.Common.Models.Market.Candle ToModel(this Candle source)
+		public static Infrastructure.Common.Models.Market.Candle ToOuterModel(this Candle source)
 		{
 			var target = new Infrastructure.Common.Models.Market.Candle
 			{

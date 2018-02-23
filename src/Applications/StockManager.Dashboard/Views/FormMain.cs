@@ -36,7 +36,7 @@ namespace StockManager.Dashboard.Views
 			{
 				splashScreenManager.ShowWaitForm();
 				accordionControl.Elements.Clear();
-				var currencyPairs = await _controller.Market.GetCurrencyPairs();
+				var currencyPairs = await _controller.GetCurrencyPairs();
 				if (currencyPairs.Any())
 				{
 					foreach (var currencyGroup in currencyPairs.GroupBy(currensyPair => new { currensyPair.BaseCurrencyId }))

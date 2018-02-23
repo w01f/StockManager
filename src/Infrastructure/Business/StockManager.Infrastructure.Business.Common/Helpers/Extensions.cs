@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using StockManager.Domain.Core.Common.Enums;
+using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Business.Common.Helpers
 {
