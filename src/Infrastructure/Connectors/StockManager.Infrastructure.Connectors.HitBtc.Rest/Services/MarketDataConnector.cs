@@ -50,6 +50,12 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 				case CandlePeriod.Minute30:
 					candlePeriod = "M30";
 					break;
+				case CandlePeriod.Hour1:
+					candlePeriod = "H1";
+					break;
+				case CandlePeriod.Hour4:
+					candlePeriod = "H4";
+					break;
 				case CandlePeriod.Day1:
 					candlePeriod = "D1";
 					break;

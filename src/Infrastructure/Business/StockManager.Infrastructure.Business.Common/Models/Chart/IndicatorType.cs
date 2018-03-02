@@ -2,6 +2,7 @@
 {
 	public enum IndicatorType
 	{
-		EMA
+		EMA,
+		Stochastic,
 	}
 }

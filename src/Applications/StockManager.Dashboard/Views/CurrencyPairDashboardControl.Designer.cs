@@ -41,17 +41,15 @@
 			// 
 			// chartControl
 			// 
+			this.chartControl.CrosshairOptions.ShowOnlyInFocusedPane = false;
 			this.chartControl.DataBindings = null;
 			xyDiagram1.AxisX.AutoScaleBreaks.Enabled = true;
 			xyDiagram1.AxisX.DateTimeScaleOptions.AggregateFunction = DevExpress.XtraCharts.AggregateFunction.None;
 			xyDiagram1.AxisX.DateTimeScaleOptions.MeasureUnit = DevExpress.XtraCharts.DateTimeMeasureUnit.Minute;
 			xyDiagram1.AxisX.Tickmarks.MinorVisible = false;
 			xyDiagram1.AxisX.VisibleInPanesSerializable = "-1";
+			xyDiagram1.AxisY.Alignment = DevExpress.XtraCharts.AxisAlignment.Far;
 			xyDiagram1.AxisY.VisibleInPanesSerializable = "-1";
-			xyDiagram1.DefaultPane.EnableAxisXScrolling = DevExpress.Utils.DefaultBoolean.True;
-			xyDiagram1.DefaultPane.EnableAxisXZooming = DevExpress.Utils.DefaultBoolean.True;
-			xyDiagram1.DefaultPane.EnableAxisYScrolling = DevExpress.Utils.DefaultBoolean.True;
-			xyDiagram1.DefaultPane.EnableAxisYZooming = DevExpress.Utils.DefaultBoolean.True;
 			xyDiagram1.EnableAxisXScrolling = true;
 			xyDiagram1.EnableAxisXZooming = true;
 			xyDiagram1.EnableAxisYScrolling = true;

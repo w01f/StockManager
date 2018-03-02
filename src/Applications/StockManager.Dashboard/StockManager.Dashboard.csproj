@@ -243,6 +243,8 @@
     <Compile Include="Controllers\CurrencyPairController.cs" />
     <Compile Include="DependencyInitializer.cs" />
     <Compile Include="Helpers\Extensions.cs" />
+    <Compile Include="Models\Chart\IndicatorPanelSettings.cs" />
+    <Compile Include="Models\Chart\IndicatorSeriesSettings.cs" />
     <Compile Include="Views\FormMain.cs">
       <SubType>Form</SubType>
     </Compile>

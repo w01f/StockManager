@@ -27,8 +27,8 @@ namespace StockManager.Dashboard
 			Bind<IMarketDataConnector>()
 				.To<MarketDataConnector>();
 
-			Bind<IAnalysisService>()
-				.To<TradyAnalysisService>();
+			Bind<IIndicatorComputingService>()
+				.To<TradyIndicatorComputingService>();
 
 			Bind<ChartService>()
 				.ToSelf();

@@ -8,12 +8,12 @@ namespace StockManager.Infrastructure.Business.Common.Models.Chart
 		public string CurrencyPairId { get; set; }
 		public CandlePeriod Period { get; set; }
 		public int CandleLimit { get; set; }
-		public List<IndicatorSettings> Indicators { get; set; }
+		public List<BaseIndicatorSettings> Indicators { get; set; }
 
 		public ChartSettings()
 		{
 			CandleLimit = 100;
-			Indicators = new List<IndicatorSettings>();
+			Indicators = new List<BaseIndicatorSettings>();
 		}
 	}
 }

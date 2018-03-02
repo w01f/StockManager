@@ -18,6 +18,7 @@ namespace StockManager.Dashboard.Views
 		public FormMain()
 		{
 			InitializeComponent();
+			ribbonControl.Minimized = true;
 
 			Shown += OnFormShown;
 			accordionControl.ElementClick += OnAccordionElementClick;
