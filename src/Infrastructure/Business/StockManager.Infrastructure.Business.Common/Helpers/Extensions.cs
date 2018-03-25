@@ -30,19 +30,27 @@ namespace StockManager.Infrastructure.Business.Common.Helpers
 						lastDate = lastDate.AddMinutes(-1);
 					break;
 				case CandlePeriod.Hour1:
-				case CandlePeriod.Hour4:
 					lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, lastDate.Hour, 0, 0);
 					break;
+				case CandlePeriod.Hour4:
+					lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, lastDate.Hour, 0, 0);
+					while (lastDate.Hour % 4 != 0)
+						lastDate = lastDate.AddHours(-1);
+					break;
 				case CandlePeriod.Day1:
+					lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, 0, 0, 0);
+					break;
 				case CandlePeriod.Day7:
 					lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, 0, 0, 0);
+					while (lastDate.DayOfWeek != DayOfWeek.Monday)
+						lastDate = lastDate.AddDays(-1);
 					break;
 				case CandlePeriod.Month1:
 					lastDate = new DateTime(lastDate.Year, lastDate.Month, 1, 0, 0, 0);
 					break;
 			}
 
-			while (limit>0)
+			while (limit > 0)
 			{
 				yield return lastDate;
 				switch (period)

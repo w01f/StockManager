@@ -12,7 +12,7 @@ using System;
 namespace StockManager.Infrastructure.Data.SQLite.Migrations
 {
     [DbContext(typeof(SQLiteDataContext))]
-    [Migration("20180219124601_InitialCreate")]
+    [Migration("20180311140432_InitialCreate")]
     partial class InitialCreate
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

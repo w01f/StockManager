@@ -17,23 +17,33 @@ namespace StockManager.Infrastructure.Business.Common.Helpers
 			IMarketDataConnector marketDataConnector)
 		{
 			var momentsByPeriod = Extensions.GetMomentsByPeriod(period, limit).ToList();
+			momentsByPeriod.Sort();
 
 			var storedCandles = candleRepository.GetAll()
-				.Where(entity => entity.Period == period && momentsByPeriod.Contains(entity.Moment))
+				.Where(entity => entity.CurrencyPair == currencyPairId && entity.Period == period && momentsByPeriod.Contains(entity.Moment))
 				.OrderBy(entity => entity.Moment)
 				.Select(entity => entity.ToModel())
 				.ToList();
 
-			var requestLimit = momentsByPeriod.Count - storedCandles.Count;
-
-			if (requestLimit > 0)
+			if (momentsByPeriod.Count > storedCandles.Count)
 			{
-				var newCandles = await marketDataConnector.GetCandles(currencyPairId, period, requestLimit);
+				var momentsToRequest = momentsByPeriod
+					.Where(moment => storedCandles.All(candle => candle.Moment != moment))
+					.ToList();
+				var candlesLimit = momentsByPeriod.Count - momentsByPeriod.IndexOf(momentsToRequest.Min());
+				var newCandles = await marketDataConnector.GetCandles(currencyPairId, period, candlesLimit);
 
-				candleRepository.Insert(newCandles.Select(candle => candle.ToEntity(currencyPairId, period)));
+				var candlesToInsert = newCandles
+					.Where(candle => momentsToRequest.Contains(candle.Moment))
+					.ToList();
+
+				if (candlesToInsert.Any())
+					candleRepository.Insert(candlesToInsert
+						.Select(candle => candle.ToEntity(currencyPairId, period))
+						.ToList());
 
 				var candlesUnion = storedCandles
-					.Union(newCandles)
+					.Union(candlesToInsert)
 					.OrderBy(candle => candle.Moment)
 					.ToList();
 
