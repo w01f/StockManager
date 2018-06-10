@@ -31,12 +31,14 @@
 			DevExpress.XtraCharts.XYDiagram xyDiagram1 = new DevExpress.XtraCharts.XYDiagram();
 			DevExpress.XtraCharts.Series series1 = new DevExpress.XtraCharts.Series();
 			DevExpress.XtraCharts.CandleStickSeriesView candleStickSeriesView1 = new DevExpress.XtraCharts.CandleStickSeriesView();
+			DevExpress.XtraCharts.Series series2 = new DevExpress.XtraCharts.Series();
 			this.chartControl = new DevExpress.XtraCharts.ChartControl();
 			this.splashScreenManager = new DevExpress.XtraSplashScreen.SplashScreenManager(this, typeof(global::StockManager.Dashboard.Views.FormProgress), true, true, typeof(System.Windows.Forms.UserControl));
 			((System.ComponentModel.ISupportInitialize)(this.chartControl)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(xyDiagram1)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(series1)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(candleStickSeriesView1)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(series2)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// chartControl
@@ -69,8 +71,10 @@
 			candleStickSeriesView1.LevelLineLength = 0.8D;
 			candleStickSeriesView1.LineThickness = 1;
 			series1.View = candleStickSeriesView1;
+			series2.Name = "Series 1";
 			this.chartControl.SeriesSerializable = new DevExpress.XtraCharts.Series[] {
-        series1};
+        series1,
+        series2};
 			this.chartControl.Size = new System.Drawing.Size(492, 481);
 			this.chartControl.TabIndex = 0;
 			// 
@@ -88,6 +92,7 @@
 			((System.ComponentModel.ISupportInitialize)(xyDiagram1)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(candleStickSeriesView1)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(series1)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(series2)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.chartControl)).EndInit();
 			this.ResumeLayout(false);
 

@@ -27,6 +27,7 @@ namespace StockManager.Infrastructure.Business.Common.Services
 				await CandleLoader.Load(currencyPairId,
 					candlePeriod,
 					candleLimit,
+					DateTime.UtcNow, 
 					_candleRepository,
 					_marketDataConnector);
 			}

@@ -32,6 +32,7 @@ namespace StockManager.Infrastructure.Business.Common.Services
 				settings.CurrencyPairId,
 				settings.Period,
 				settings.CandleLimit,
+				settings.CurrentMoment,
 				_candleRepository,
 				_marketDataConnector)).ToList();
 
@@ -44,14 +45,21 @@ namespace StockManager.Infrastructure.Business.Common.Services
 					case IndicatorType.EMA:
 						indicatorDataset.Values = _indicatorComputingService.ComputeEMA(
 							chartDataset.Candles,
-							indicatorSettings.Period);
+							((CommonIndicatorSettings)indicatorSettings).Period);
+						break;
+					case IndicatorType.MACD:
+						indicatorDataset.Values = _indicatorComputingService.ComputeMACD(
+							chartDataset.Candles,
+							((MACDSettings)indicatorSettings).EMAPeriod1,
+							((MACDSettings)indicatorSettings).EMAPeriod2,
+							((MACDSettings)indicatorSettings).SignalPeriod);
 						break;
 					case IndicatorType.Stochastic:
 						indicatorDataset.Values = _indicatorComputingService.ComputeStochastic(
 							chartDataset.Candles,
-							indicatorSettings.Period,
-							((StochasticSettings)indicatorSettings).SMACountK,
-							((StochasticSettings)indicatorSettings).SMACountD);
+							((StochasticSettings)indicatorSettings).Period,
+							((StochasticSettings)indicatorSettings).SMAPeriodK,
+							((StochasticSettings)indicatorSettings).SMAPeriodD);
 						break;
 					default:
 						throw new AnalysisException("Undefined indicator type");

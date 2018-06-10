@@ -5,7 +5,7 @@ namespace StockManager.Infrastructure.Business.Common.Models.Chart
 {
 	public class IndicatorDataset
 	{
-		public BaseIndicatorSettings Settings { get; set; }
+		public IndicatorSettings Settings { get; set; }
 		public IList<BaseIndicatorValue> Values { get; set; }
 	}
 }

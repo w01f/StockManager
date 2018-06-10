@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using StockManager.Domain.Core.Common.Enums;
-using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Business.Common.Helpers
 {
 	static class Extensions
 	{
-		public static IEnumerable<DateTime> GetMomentsByPeriod(CandlePeriod period, int limit)
+		public static IEnumerable<DateTime> GetMomentsByPeriod(CandlePeriod period, int limit, DateTime currentMoment)
 		{
-			var lastDate = DateTime.UtcNow;
+			var lastDate = currentMoment;
 			lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, lastDate.Hour, lastDate.Minute, 0);
 			switch (period)
 			{

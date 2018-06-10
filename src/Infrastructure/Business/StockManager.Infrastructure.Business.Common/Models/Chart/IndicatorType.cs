@@ -3,6 +3,7 @@
 	public enum IndicatorType
 	{
 		EMA,
+		MACD,
 		Stochastic,
 	}
 }

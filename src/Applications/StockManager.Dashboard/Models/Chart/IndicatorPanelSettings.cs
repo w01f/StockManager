@@ -18,6 +18,13 @@ namespace StockManager.Dashboard.Models.Chart
 				{
 					AssignedIndicators = new[]
 					{
+						IndicatorType.MACD,
+					}
+				},
+				new IndicatorPanelSettings
+				{
+					AssignedIndicators = new[]
+					{
 						IndicatorType.Stochastic,
 					}
 				},

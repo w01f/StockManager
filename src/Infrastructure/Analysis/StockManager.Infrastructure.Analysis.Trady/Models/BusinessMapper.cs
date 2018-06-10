@@ -23,7 +23,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 			return target;
 		}
 
-		public static Infrastructure.Common.Models.Analysis.StochasticValue ToOuterModel(this AnalyzableTick<(decimal? K, decimal? D, decimal? J)> source)
+		public static Infrastructure.Common.Models.Analysis.StochasticValue ToStochasticOuterModel(this AnalyzableTick<(decimal? K, decimal? D, decimal? J)> source)
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
@@ -32,6 +32,19 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 				K = source.Tick.K,
 				D = source.Tick.D,
 				J = source.Tick.J,
+			};
+			return target;
+		}
+
+		public static Infrastructure.Common.Models.Analysis.MACDValue ToMACDOuterModel(this AnalyzableTick<(decimal? MacdLine, decimal? SignalLine, decimal? MacdHistogram)> source)
+		{
+			if (!source.DateTime.HasValue)
+				throw new AnalysisException("Indicator value should be assigned for the moment");
+			var target = new Infrastructure.Common.Models.Analysis.MACDValue(source.DateTime.Value)
+			{
+				MACD = source.Tick.MacdLine,
+				Signal = source.Tick.SignalLine,
+				Histogram = source.Tick.MacdHistogram,
 			};
 			return target;
 		}

@@ -7,7 +7,6 @@ using DevExpress.XtraCharts;
 using DevExpress.XtraEditors;
 using Ninject;
 using StockManager.Dashboard.Controllers;
-using StockManager.Dashboard.Helpers;
 using StockManager.Dashboard.Models.Chart;
 using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Business.Common.Models.Chart;
@@ -44,12 +43,14 @@ namespace StockManager.Dashboard.Views
 				var chartSettings = new ChartSettings();
 				chartSettings.CurrencyPairId = Info.Id;
 				chartSettings.Period = CandlePeriod.Minute5;
+				chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0);
 
 				//TODO Make it optional
-				chartSettings.Indicators.AddRange(new[]{
-					new BaseIndicatorSettings { Type = IndicatorType.EMA, Period = 5 },
-					new BaseIndicatorSettings { Type = IndicatorType.EMA, Period = 10 },
-					new StochasticSettings { Period = 14, SMACountK = 1, SMACountD = 3}
+				chartSettings.Indicators.AddRange(new IndicatorSettings[]{
+					new CommonIndicatorSettings { Type = IndicatorType.EMA, Period = 5 },
+					new CommonIndicatorSettings { Type = IndicatorType.EMA, Period = 10 },
+					new MACDSettings { EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
+					new StochasticSettings { Period = 14, SMAPeriodK = 1, SMAPeriodD = 3}
 				});
 
 				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
@@ -81,8 +82,7 @@ namespace StockManager.Dashboard.Views
 			table.Columns.Add("MaxPrice", typeof(Decimal));
 			table.Columns.Add("MinPrice", typeof(Decimal));
 
-			foreach (var indicatorDataset in inputDataset.IndicatorData)
-				table.Columns.AddRange(indicatorDataset.Settings.GetIndicatorTitles().Select(title => new DataColumn(title, typeof(Decimal))).ToArray());
+			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(inputDataset.IndicatorData.Select(data => data.Settings).ToList()).Select(viewSettings => new DataColumn(viewSettings.IndicatorValue, typeof(Decimal))).ToArray());
 
 			foreach (var candle in inputDataset.Candles)
 			{
@@ -102,6 +102,11 @@ namespace StockManager.Dashboard.Views
 								.Select(value => value.Value)
 								.FirstOrDefault());
 							break;
+						case IndicatorType.MACD:
+							rowValues.AddRange(indicatorDataset.Values.OfType<MACDValue>()
+								.Where(value => value.Moment == candle.Moment)
+								.SelectMany(value => new object[] { value.MACD, value.Signal, value.Histogram }));
+							break;
 						case IndicatorType.Stochastic:
 							rowValues.AddRange(indicatorDataset.Values.OfType<StochasticValue>()
 								.Where(value => value.Moment == candle.Moment)
@@ -116,47 +121,57 @@ namespace StockManager.Dashboard.Views
 			return table;
 		}
 
-		private void ConfigureIndicatorChars(IList<BaseIndicatorSettings> indicators)
+		private void ConfigureIndicatorChars(IList<IndicatorSettings> indicators)
 		{
-			var indicatorSeriesSettingsSet = new List<IndicatorSeriesSettings>();
+			var indicatorSeriesSettingsSet = new List<IndicatorSeriesColorSettings>();
 			var indicatorAddtionalPanels = IndicatorPanelSettings.GetAdditionalPanelsSettings();
 
 			//Build Series
-			foreach (var indicator in indicators)
+			var viewSettingsByIndicatorType = IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(indicators).GroupBy(viewSettings => viewSettings.IndicatorType);
+			foreach (var seriesViewSettings in viewSettingsByIndicatorType)
 			{
 				var indicatorSerieses = new List<Series>();
-				var seriesViews = new List<LineSeriesView>();
+				var seriesViews = new List<SeriesViewColorEachSupportBase>();
 
-				var indicatorParts = indicator.GetIndicatorTitles().ToList();
-				if (!indicatorParts.Any())
-					throw new ArgumentOutOfRangeException("No indicator parts for selected indicator");
-
-				foreach (var indicatorTitle in indicatorParts)
+				foreach (var viewSettings in seriesViewSettings)
 				{
-					var seriesView = new LineSeriesView();
-					var seriesSettings = new IndicatorSeriesSettings
+					SeriesViewColorEachSupportBase seriesView;
+
+					switch (viewSettings.ViewType)
 					{
-						IndicatorType = indicator.Type
+						case ViewType.Line:
+							seriesView = new LineSeriesView();
+							break;
+						case ViewType.Bar:
+							seriesView = new StackedBarSeriesView();
+							break;
+						default:
+							throw new ArgumentOutOfRangeException("Undefined chart view type");
+					}
+
+					var seriesSettings = new IndicatorSeriesColorSettings
+					{
+						IndicatorType = seriesViewSettings.Key
 					};
-					var availableColors = IndicatorSeriesSettings.AvailableSeriesColors
-						.Where(color => indicatorSeriesSettingsSet.Where(s => s.IndicatorType == indicator.Type).All(s => s.SeriesColor != color))
+					var availableColors = IndicatorSeriesColorSettings.AvailableSeriesColors
+						.Where(color => indicatorSeriesSettingsSet.Where(s => s.IndicatorType == seriesViewSettings.Key).All(s => s.SeriesColor != color))
 						.ToList();
-					seriesSettings.SeriesColor = availableColors.Any() ? availableColors.First() : IndicatorSeriesSettings.LastDefaultColor;
+					seriesSettings.SeriesColor = availableColors.Any() ? availableColors.First() : IndicatorSeriesColorSettings.LastDefaultColor;
 					indicatorSeriesSettingsSet.Add(seriesSettings);
 
 					seriesView.Color = seriesSettings.SeriesColor;
 					seriesViews.Add(seriesView);
 
-					var indicatorSeries = new Series(indicatorTitle, ViewType.Line);
+					var indicatorSeries = new Series(viewSettings.IndicatorValue, viewSettings.ViewType);
 					indicatorSeries.ArgumentScaleType = ScaleType.DateTime;
 					indicatorSeries.LabelsVisibility = DevExpress.Utils.DefaultBoolean.False;
 					indicatorSeries.ArgumentDataMember = "Moment";
-					indicatorSeries.ValueDataMembers.AddRange(indicatorTitle);
+					indicatorSeries.ValueDataMembers.AddRange(viewSettings.IndicatorValue);
 					indicatorSeries.View = seriesView;
 					indicatorSerieses.Add(indicatorSeries);
 				}
 
-				var panelSettings = indicatorAddtionalPanels.FirstOrDefault(s => s.AssignedIndicators.Contains(indicator.Type));
+				var panelSettings = indicatorAddtionalPanels.FirstOrDefault(s => s.AssignedIndicators.Contains(seriesViewSettings.Key));
 				if (panelSettings != null)
 				{
 					if (panelSettings.Panel == null || panelSettings.AxisY == null)

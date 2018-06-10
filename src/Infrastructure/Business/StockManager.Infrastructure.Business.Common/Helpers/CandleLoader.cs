@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Common.Enums;
@@ -13,10 +14,11 @@ namespace StockManager.Infrastructure.Business.Common.Helpers
 		public static async Task<IEnumerable<Candle>> Load(string currencyPairId,
 			CandlePeriod period,
 			int limit,
+			DateTime currentMoment,
 			IRepository<Domain.Core.Entities.Market.Candle> candleRepository,
 			IMarketDataConnector marketDataConnector)
 		{
-			var momentsByPeriod = Extensions.GetMomentsByPeriod(period, limit).ToList();
+			var momentsByPeriod = Extensions.GetMomentsByPeriod(period, limit, currentMoment).ToList();
 			momentsByPeriod.Sort();
 
 			var storedCandles = candleRepository.GetAll()

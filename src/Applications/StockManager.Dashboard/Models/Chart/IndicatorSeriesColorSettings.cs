@@ -3,7 +3,7 @@ using StockManager.Infrastructure.Business.Common.Models.Chart;
 
 namespace StockManager.Dashboard.Models.Chart
 {
-	class IndicatorSeriesSettings
+	class IndicatorSeriesColorSettings
 	{
 		public static Color[] AvailableSeriesColors = {
 			Color.Orange,
