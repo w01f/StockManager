@@ -9,9 +9,9 @@ using Ninject;
 using StockManager.Dashboard.Controllers;
 using StockManager.Dashboard.Models.Chart;
 using StockManager.Domain.Core.Common.Enums;
-using StockManager.Infrastructure.Business.Common.Models.Chart;
-using StockManager.Infrastructure.Common.Models.Analysis;
-using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Analysis.Common.Models;
+using StockManager.Infrastructure.Business.Chart.Models;
+using StockManager.Infrastructure.Connectors.Common.Models;
 
 namespace StockManager.Dashboard.Views
 {

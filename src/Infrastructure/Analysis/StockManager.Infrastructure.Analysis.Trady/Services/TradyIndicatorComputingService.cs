@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Analysis.Trady.Models;
-using StockManager.Infrastructure.Common.Models.Analysis;
 using StockManager.Infrastructure.Common.Models.Market;
 using Trady.Analysis.Indicator;
 

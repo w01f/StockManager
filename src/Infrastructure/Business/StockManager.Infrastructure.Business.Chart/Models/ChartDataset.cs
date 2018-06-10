@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using StockManager.Infrastructure.Common.Models.Market;
 
-namespace StockManager.Infrastructure.Business.Common.Models.Chart
+namespace StockManager.Infrastructure.Business.Chart.Models
 {
 	public class ChartDataset
 	{

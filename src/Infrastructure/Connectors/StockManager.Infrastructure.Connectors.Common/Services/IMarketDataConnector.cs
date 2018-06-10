@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Connectors.Common.Models;
 
 namespace StockManager.Infrastructure.Connectors.Common.Services
 {

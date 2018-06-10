@@ -7,7 +7,7 @@ using DevExpress.XtraBars.Ribbon;
 using Ninject;
 using Ninject.Parameters;
 using StockManager.Dashboard.Controllers;
-using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Connectors.Common.Models;
 
 namespace StockManager.Dashboard.Views
 {

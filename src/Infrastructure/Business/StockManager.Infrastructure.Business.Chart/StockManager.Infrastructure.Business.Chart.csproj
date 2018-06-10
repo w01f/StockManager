@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
+    <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
+    <ProjectReference Include="..\..\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj" />
+    <ProjectReference Include="..\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
+  </ItemGroup>
+
+</Project>

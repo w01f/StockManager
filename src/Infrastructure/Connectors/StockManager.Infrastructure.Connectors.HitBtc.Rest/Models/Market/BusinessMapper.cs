@@ -2,9 +2,9 @@
 {
 	static class BusinessMapper
 	{
-		public static Infrastructure.Common.Models.Market.CurrencyPair ToOuterModel(this CurrencyPair source)
+		public static Common.Models.CurrencyPair ToOuterModel(this CurrencyPair source)
 		{
-			var target = new Infrastructure.Common.Models.Market.CurrencyPair
+			var target = new Common.Models.CurrencyPair
 			{
 				Id = source.Id,
 				BaseCurrencyId = source.BaseCurrencyId,

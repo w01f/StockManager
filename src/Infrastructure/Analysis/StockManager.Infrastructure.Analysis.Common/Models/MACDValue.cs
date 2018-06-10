@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace StockManager.Infrastructure.Common.Models.Analysis
+namespace StockManager.Infrastructure.Analysis.Common.Models
 {
 	public class MACDValue : BaseIndicatorValue
 	{

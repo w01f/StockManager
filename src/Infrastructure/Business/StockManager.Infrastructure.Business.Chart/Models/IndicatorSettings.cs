@@ -1,4 +1,4 @@
-﻿namespace StockManager.Infrastructure.Business.Common.Models.Chart
+﻿namespace StockManager.Infrastructure.Business.Chart.Models
 {
 	public abstract class IndicatorSettings
 	{

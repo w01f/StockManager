@@ -330,6 +330,10 @@
       <Project>{CC9D54DA-B49B-47CD-BC6D-3B133651BE36}</Project>
       <Name>StockManager.Infrastructure.Analysis.Trady</Name>
     </ProjectReference>
+    <ProjectReference Include="..\..\Infrastructure\Business\StockManager.Infrastructure.Business.Chart\StockManager.Infrastructure.Business.Chart.csproj">
+      <Project>{713DE155-8B7A-41B5-AAFD-6EA278CE2F52}</Project>
+      <Name>StockManager.Infrastructure.Business.Chart</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\Infrastructure\Business\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj">
       <Project>{dd2741a3-d66b-4e73-8bc1-f96049ed3947}</Project>
       <Name>StockManager.Infrastructure.Business.Common</Name>

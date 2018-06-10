@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using Ninject;
-using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Connectors.Common.Models;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Dashboard.Controllers

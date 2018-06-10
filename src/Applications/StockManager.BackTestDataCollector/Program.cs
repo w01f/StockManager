@@ -1,6 +1,6 @@
-﻿using System;
+﻿using StockManager.Infrastructure.Business.Collector.Services;
+using System;
 using System.Threading.Tasks;
-using StockManager.Infrastructure.Business.Common.Services;
 
 namespace StockManager.BackTestDataCollector
 {

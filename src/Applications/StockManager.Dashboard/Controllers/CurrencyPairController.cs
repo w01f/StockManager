@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Ninject;
-using StockManager.Infrastructure.Business.Common.Models.Chart;
-using StockManager.Infrastructure.Business.Common.Services;
+using StockManager.Infrastructure.Business.Chart.Models;
+using StockManager.Infrastructure.Business.Chart.Services;
 
 namespace StockManager.Dashboard.Controllers
 {

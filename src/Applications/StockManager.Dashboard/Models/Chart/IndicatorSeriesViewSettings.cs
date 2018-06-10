@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using DevExpress.XtraCharts;
-using StockManager.Infrastructure.Business.Common.Models.Chart;
+using StockManager.Infrastructure.Business.Chart.Models;
 
 namespace StockManager.Dashboard.Models.Chart
 {

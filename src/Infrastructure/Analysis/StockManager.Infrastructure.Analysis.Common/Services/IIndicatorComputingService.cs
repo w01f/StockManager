@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using StockManager.Infrastructure.Common.Models.Analysis;
+using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Analysis.Common.Services

@@ -1,4 +1,4 @@
-﻿namespace StockManager.Infrastructure.Common.Models.Market
+﻿namespace StockManager.Infrastructure.Connectors.Common.Models
 {
 	public class CurrencyPair
 	{

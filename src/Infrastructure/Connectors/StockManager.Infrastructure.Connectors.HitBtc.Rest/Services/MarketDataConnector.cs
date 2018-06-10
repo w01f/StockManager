@@ -13,7 +13,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 {
 	public class MarketDataConnector : IMarketDataConnector
 	{
-		public async Task<IList<Infrastructure.Common.Models.Market.CurrencyPair>> GetCurrensyPairs()
+		public async Task<IList<Common.Models.CurrencyPair>> GetCurrensyPairs()
 		{
 			var connection = new ApiConnection();
 			var request = new RestRequest("public/symbol", Method.GET);

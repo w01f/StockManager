@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using StockManager.Domain.Core.Common.Enums;
 
-namespace StockManager.Infrastructure.Business.Common.Models.Chart
+namespace StockManager.Infrastructure.Business.Chart.Models
 {
 	public class ChartSettings
 	{

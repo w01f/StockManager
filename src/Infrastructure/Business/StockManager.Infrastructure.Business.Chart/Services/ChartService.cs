@@ -1,13 +1,13 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Repositories;
+using StockManager.Infrastructure.Analysis.Common.Common;
 using StockManager.Infrastructure.Analysis.Common.Services;
+using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Common.Helpers;
-using StockManager.Infrastructure.Business.Common.Models.Chart;
-using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
-namespace StockManager.Infrastructure.Business.Common.Services
+namespace StockManager.Infrastructure.Business.Chart.Services
 {
 	public class ChartService
 	{

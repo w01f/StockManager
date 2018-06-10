@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace StockManager.Infrastructure.Common.Common
+namespace StockManager.Infrastructure.Analysis.Common.Common
 {
 	public class AnalysisException : ApplicationException
 	{

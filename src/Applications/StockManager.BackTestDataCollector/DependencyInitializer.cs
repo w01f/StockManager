@@ -2,7 +2,7 @@
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Analysis.Trady.Services;
-using StockManager.Infrastructure.Business.Common.Services;
+using StockManager.Infrastructure.Business.Collector.Services;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
 using StockManager.Infrastructure.Data.SQLite;

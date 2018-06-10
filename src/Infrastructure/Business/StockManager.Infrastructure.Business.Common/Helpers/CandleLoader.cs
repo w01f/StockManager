@@ -9,7 +9,7 @@ using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Common.Helpers
 {
-	static class CandleLoader
+	public static class CandleLoader
 	{
 		public static async Task<IEnumerable<Candle>> Load(string currencyPairId,
 			CandlePeriod period,

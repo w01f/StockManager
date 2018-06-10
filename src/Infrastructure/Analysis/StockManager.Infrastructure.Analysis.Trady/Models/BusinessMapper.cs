@@ -1,4 +1,5 @@
-﻿using StockManager.Infrastructure.Common.Common;
+﻿using StockManager.Infrastructure.Analysis.Common.Common;
+using StockManager.Infrastructure.Analysis.Common.Models;
 using Trady.Analysis;
 using Trady.Core;
 
@@ -12,22 +13,22 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 				source.VolumeInBaseCurrency);
 		}
 
-		public static Infrastructure.Common.Models.Analysis.SimpleIndicatorValue ToOuterModel(this AnalyzableTick<decimal?> source)
+		public static SimpleIndicatorValue ToOuterModel(this AnalyzableTick<decimal?> source)
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new Infrastructure.Common.Models.Analysis.SimpleIndicatorValue(source.DateTime.Value)
+			var target = new SimpleIndicatorValue(source.DateTime.Value)
 			{
 				Value = source.Tick,
 			};
 			return target;
 		}
 
-		public static Infrastructure.Common.Models.Analysis.StochasticValue ToStochasticOuterModel(this AnalyzableTick<(decimal? K, decimal? D, decimal? J)> source)
+		public static StochasticValue ToStochasticOuterModel(this AnalyzableTick<(decimal? K, decimal? D, decimal? J)> source)
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new Infrastructure.Common.Models.Analysis.StochasticValue(source.DateTime.Value)
+			var target = new StochasticValue(source.DateTime.Value)
 			{
 				K = source.Tick.K,
 				D = source.Tick.D,
@@ -36,11 +37,11 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 			return target;
 		}
 
-		public static Infrastructure.Common.Models.Analysis.MACDValue ToMACDOuterModel(this AnalyzableTick<(decimal? MacdLine, decimal? SignalLine, decimal? MacdHistogram)> source)
+		public static MACDValue ToMACDOuterModel(this AnalyzableTick<(decimal? MacdLine, decimal? SignalLine, decimal? MacdHistogram)> source)
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new Infrastructure.Common.Models.Analysis.MACDValue(source.DateTime.Value)
+			var target = new MACDValue(source.DateTime.Value)
 			{
 				MACD = source.Tick.MacdLine,
 				Signal = source.Tick.SignalLine,

@@ -6,7 +6,7 @@ using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
-namespace StockManager.Infrastructure.Business.Common.Services
+namespace StockManager.Infrastructure.Business.Collector.Services
 {
 	public class CollectorService
 	{
