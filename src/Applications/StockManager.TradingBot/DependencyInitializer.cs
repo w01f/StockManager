@@ -1,17 +1,14 @@
 ﻿using Ninject.Modules;
-using StockManager.Dashboard.Controllers;
-using StockManager.Dashboard.Views;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Analysis.Trady.Services;
-using StockManager.Infrastructure.Business.Chart.Services;
 using StockManager.Infrastructure.Business.Trading.Services;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
 
-namespace StockManager.Dashboard
+namespace StockManager.TradingBot
 {
 	class DependencyInitializer : NinjectModule
 	{
@@ -33,22 +30,8 @@ namespace StockManager.Dashboard
 
 			Bind<MarketStateService>()
 				.ToSelf();
-			Bind<ChartService>()
+			Bind<TradingService>()
 				.ToSelf();
-
-			Bind<MainController>()
-				.ToSelf()
-				.InSingletonScope();
-			Bind<CurrencyPairController>()
-				.ToSelf()
-				.InSingletonScope();
-
-
-			Bind<FormMain>()
-				.ToSelf()
-				.InSingletonScope();
-
-			Bind<CurrencyPairDashboardControl>().ToSelf();
 		}
 	}
 }

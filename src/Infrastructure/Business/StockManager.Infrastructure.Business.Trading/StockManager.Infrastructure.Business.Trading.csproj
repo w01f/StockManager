@@ -7,9 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
     <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
-    <ProjectReference Include="..\..\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj" />
     <ProjectReference Include="..\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
-    <ProjectReference Include="..\StockManager.Infrastructure.Business.Trading\StockManager.Infrastructure.Business.Trading.csproj" />
   </ItemGroup>
 
 </Project>

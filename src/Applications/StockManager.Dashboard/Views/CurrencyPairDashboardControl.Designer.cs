@@ -32,6 +32,9 @@
 			DevExpress.XtraCharts.Series series1 = new DevExpress.XtraCharts.Series();
 			DevExpress.XtraCharts.CandleStickSeriesView candleStickSeriesView1 = new DevExpress.XtraCharts.CandleStickSeriesView();
 			DevExpress.XtraCharts.Series series2 = new DevExpress.XtraCharts.Series();
+			DevExpress.XtraCharts.PointSeriesView pointSeriesView1 = new DevExpress.XtraCharts.PointSeriesView();
+			DevExpress.XtraCharts.Series series3 = new DevExpress.XtraCharts.Series();
+			DevExpress.XtraCharts.PointSeriesView pointSeriesView2 = new DevExpress.XtraCharts.PointSeriesView();
 			this.chartControl = new DevExpress.XtraCharts.ChartControl();
 			this.splashScreenManager = new DevExpress.XtraSplashScreen.SplashScreenManager(this, typeof(global::StockManager.Dashboard.Views.FormProgress), true, true, typeof(System.Windows.Forms.UserControl));
 			((System.ComponentModel.ISupportInitialize)(this.chartControl)).BeginInit();
@@ -39,6 +42,9 @@
 			((System.ComponentModel.ISupportInitialize)(series1)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(candleStickSeriesView1)).BeginInit();
 			((System.ComponentModel.ISupportInitialize)(series2)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(pointSeriesView1)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(series3)).BeginInit();
+			((System.ComponentModel.ISupportInitialize)(pointSeriesView2)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// chartControl
@@ -71,11 +77,25 @@
 			candleStickSeriesView1.LevelLineLength = 0.8D;
 			candleStickSeriesView1.LineThickness = 1;
 			series1.View = candleStickSeriesView1;
-			series2.Name = "Series 1";
+			series2.ArgumentDataMember = "Moment";
+			series2.Name = "Buy Points";
+			series2.ValueDataMembersSerializable = "BuyPrice";
+			pointSeriesView1.Color = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(176)))), ((int)(((byte)(80)))));
+			pointSeriesView1.PointMarkerOptions.Kind = DevExpress.XtraCharts.MarkerKind.Triangle;
+			pointSeriesView1.PointMarkerOptions.Size = 16;
+			series2.View = pointSeriesView1;
+			series3.ArgumentDataMember = "Moment";
+			series3.Name = "Sell Points";
+			series3.ValueDataMembersSerializable = "SellPrice";
+			pointSeriesView2.Color = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(176)))), ((int)(((byte)(240)))));
+			pointSeriesView2.PointMarkerOptions.Kind = DevExpress.XtraCharts.MarkerKind.InvertedTriangle;
+			pointSeriesView2.PointMarkerOptions.Size = 16;
+			series3.View = pointSeriesView2;
 			this.chartControl.SeriesSerializable = new DevExpress.XtraCharts.Series[] {
         series1,
-        series2};
-			this.chartControl.Size = new System.Drawing.Size(492, 481);
+        series2,
+        series3};
+			this.chartControl.Size = new System.Drawing.Size(824, 481);
 			this.chartControl.TabIndex = 0;
 			// 
 			// splashScreenManager
@@ -88,11 +108,14 @@
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			this.Controls.Add(this.chartControl);
 			this.Name = "CurrencyPairDashboardControl";
-			this.Size = new System.Drawing.Size(492, 481);
+			this.Size = new System.Drawing.Size(824, 481);
 			((System.ComponentModel.ISupportInitialize)(xyDiagram1)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(candleStickSeriesView1)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(series1)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(pointSeriesView1)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(series2)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(pointSeriesView2)).EndInit();
+			((System.ComponentModel.ISupportInitialize)(series3)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.chartControl)).EndInit();
 			this.ResumeLayout(false);
 

@@ -55,7 +55,7 @@ namespace StockManager.Dashboard.Views
 
 				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
 
-				ConfigureIndicatorChars(chartSettings.Indicators);
+				ConfigureIndicatorCharts(chartSettings.Indicators);
 
 				chartControl.DataSource = BuildOutputDataSet(chartDataset);
 				chartControl.RefreshData();
@@ -82,6 +82,9 @@ namespace StockManager.Dashboard.Views
 			table.Columns.Add("MaxPrice", typeof(Decimal));
 			table.Columns.Add("MinPrice", typeof(Decimal));
 
+			table.Columns.Add("BuyPrice", typeof(Decimal));
+			table.Columns.Add("SellPrice", typeof(Decimal));
+
 			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(inputDataset.IndicatorData.Select(data => data.Settings).ToList()).Select(viewSettings => new DataColumn(viewSettings.IndicatorValue, typeof(Decimal))).ToArray());
 
 			foreach (var candle in inputDataset.Candles)
@@ -92,6 +95,10 @@ namespace StockManager.Dashboard.Views
 				rowValues.Add(candle.ClosePrice);
 				rowValues.Add(candle.MaxPrice);
 				rowValues.Add(candle.MinPrice);
+
+				var tradingData = inputDataset.TradingData.Single(data => data.Moment == candle.Moment);
+				rowValues.Add(tradingData.BuyPrice);
+				rowValues.Add(tradingData.SellPrice);
 
 				foreach (var indicatorDataset in inputDataset.IndicatorData)
 					switch (indicatorDataset.Settings.Type)
@@ -121,7 +128,7 @@ namespace StockManager.Dashboard.Views
 			return table;
 		}
 
-		private void ConfigureIndicatorChars(IList<IndicatorSettings> indicators)
+		private void ConfigureIndicatorCharts(IList<IndicatorSettings> indicators)
 		{
 			var indicatorSeriesSettingsSet = new List<IndicatorSeriesColorSettings>();
 			var indicatorAddtionalPanels = IndicatorPanelSettings.GetAdditionalPanelsSettings();
