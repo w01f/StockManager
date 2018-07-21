@@ -85,57 +85,22 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				CurrentMoment = settings.CurrentMoment,
 				CandleRangeSize = settings.CandleRangeSize
 			};
-			foreach (var indicatorSettings in settings.Indicators)
-			{
-				switch (indicatorSettings.Type)
-				{
-					case IndicatorType.EMA:
-						var commonIndicatorSettings = (CommonIndicatorSettings)indicatorSettings;
-						defaultTradindSettings.IndicatorSettings.Add(new Trading.Models.Trading.CommonIndicatorSettings
-						{
-							Type = Trading.Common.Enums.IndicatorType.EMA,
-							Period = commonIndicatorSettings.Period
-
-						});
-						break;
-					case IndicatorType.MACD:
-						var macdSettings = (MACDSettings)indicatorSettings;
-						defaultTradindSettings.IndicatorSettings.Add(new Trading.Models.Trading.MACDSettings
-						{
-							EMAPeriod1 = macdSettings.EMAPeriod1,
-							EMAPeriod2 = macdSettings.EMAPeriod2,
-							SignalPeriod = macdSettings.SignalPeriod
-						});
-						break;
-					case IndicatorType.Stochastic:
-						var stochasticSettings = (StochasticSettings)indicatorSettings;
-						defaultTradindSettings.IndicatorSettings.Add(new Trading.Models.Trading.StochasticSettings
-						{
-							Period = stochasticSettings.Period,
-							SMAPeriodD = stochasticSettings.SMAPeriodD,
-							SMAPeriodK = stochasticSettings.SMAPeriodK
-						});
-						break;
-				}
-			}
 
 			foreach (var candle in chartDataset.Candles)
 			{
 				var tradingSettings = new TradingSettings().InitializeFromTemplate(defaultTradindSettings);
 				tradingSettings.CurrentMoment = candle.Moment;
-				var marketInfo = await _marketStateService.EvaluateMarketState(tradingSettings);
+				var marketInfo = await _marketStateService.EstimateBuyOption(tradingSettings);
 
 				var tradingData = new TradingData
 				{
 					Moment = candle.Moment
 				};
-				switch (marketInfo.Signal)
+
+				switch (marketInfo.MarketSignal)
 				{
-					case MarketTrendType.Bullish:
+					case MarketSignalType.Buy:
 						tradingData.BuyPrice = candle.ClosePrice;
-						break;
-					case MarketTrendType.Bearish:
-						tradingData.SellPrice = candle.ClosePrice;
 						break;
 				}
 				chartDataset.TradingData.Add(tradingData);

@@ -1,10 +1,8 @@
-﻿using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
-using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Common.Enums;
-using StockManager.Infrastructure.Business.Trading.Helpers;
+using StockManager.Infrastructure.Business.Trading.Models.MarketState.Analysis.Strategy;
 using StockManager.Infrastructure.Business.Trading.Models.MarketState.Info;
 using StockManager.Infrastructure.Business.Trading.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;
@@ -26,38 +24,38 @@ namespace StockManager.Infrastructure.Business.Trading.Services
 			_indicatorComputingService = indicatorComputingService;
 		}
 
-		public async Task<BaseMarketStateInfo> EvaluateMarketState(TradingSettings settings)
+		public async Task<MarketInfo> EstimateBuyOption(TradingSettings settings)
 		{
-			var candles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
-				settings.Period,
-				settings.CandleRangeSize,
-				settings.CurrentMoment,
+			var marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Hold };
+
+			var bullishTrendIdentificationStrategy = new BuyMarketStrategy();
+			var conditionCheckingResult = await bullishTrendIdentificationStrategy.CheckConditions(
+				settings,
 				_candleRepository,
-				_marketDataConnector))
-				.ToList();
+				_marketDataConnector,
+				_indicatorComputingService
+				);
+			if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
+				marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Buy };
 
-			BaseMarketStateInfo marketSateInfo = null;
+			return marketInfo;
+		}
 
-			var trendingType = TrendIdentificationHelper.IdentifyMarketTrend(candles, _indicatorComputingService, settings);
-			switch (trendingType)
-			{
-				case MarketTrendType.Bullish:
-					var bullishMarketInfo = new BullishMarketInfo();
-					await bullishMarketInfo.ObtainTradingData();
-					marketSateInfo = bullishMarketInfo;
-					break;
-				case MarketTrendType.Bearish:
-					var bearishMarketInfo = new BearishMarketInfo();
-					await bearishMarketInfo.ObtainTradingData();
-					marketSateInfo = bearishMarketInfo;
-					break;
-				case MarketTrendType.Accumulation:
-					marketSateInfo = new AccumulationMarketInfo();
-					break;
-			}
+		public async Task<MarketInfo> EstimateSellOption(TradingSettings settings)
+		{
+			var marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Hold };
 
-			return marketSateInfo;
+			var bearishTrendIdentificationStrategy = new SellMarketStrategy();
+			var conditionCheckingResult = await bearishTrendIdentificationStrategy.CheckConditions(
+				settings,
+				_candleRepository,
+				_marketDataConnector,
+				_indicatorComputingService
+			);
+			if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
+				marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Sell };
+
+			return marketInfo;
 		}
 	}
 }

@@ -9,5 +9,6 @@ namespace StockManager.Infrastructure.Analysis.Common.Services
 		IList<BaseIndicatorValue> ComputeMACD(IList<Candle> candles, int emaPeriod1, int emaPeriod2, int signalPeriod);
 		IList<BaseIndicatorValue> ComputeEMA(IList<Candle> candles, int period);
 		IList<BaseIndicatorValue> ComputeStochastic(IList<Candle> candles, int basePeriod, int smaPeriodK, int smaPeriodD);
+		IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, int period);
 	}
 }

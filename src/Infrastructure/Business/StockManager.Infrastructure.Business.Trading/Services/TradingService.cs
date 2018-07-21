@@ -14,7 +14,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services
 
 		public async Task RunTradingIteration(TradingSettings settings)
 		{
-			var marketSate = await _marketStateService.EvaluateMarketState(settings);
+			var marketSate = await _marketStateService.EstimateBuyOption(settings);
 		}
 	}
 }

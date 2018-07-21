@@ -2,11 +2,8 @@
 
 namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Info
 {
-	class BullishMarketInfo : ActiveMarketInfo
+	public class MarketInfo
 	{
-		public BullishMarketInfo()
-		{
-			Signal = MarketTrendType.Bullish;
-		}
+		public MarketSignalType MarketSignal { get; set; }
 	}
 }

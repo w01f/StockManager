@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
@@ -51,6 +52,20 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 			outputValues.AddRange(innerValues
 				.Where(value => value.DateTime.HasValue)
 				.Select(value => value.ToStochasticOuterModel()));
+
+			return outputValues;
+		}
+
+		public IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, Int32 period)
+		{
+			var indicator = new RelativeStrengthIndex(candles.Select(candle => candle.ToInnerModel()), period);
+			var innerValues = indicator.Compute();
+
+			var outputValues = new List<BaseIndicatorValue>();
+
+			outputValues.AddRange(innerValues
+				.Where(value => value.DateTime.HasValue)
+				.Select(value => value.ToOuterModel()));
 
 			return outputValues;
 		}
