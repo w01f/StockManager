@@ -2,7 +2,7 @@
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Common.Enums;
-using StockManager.Infrastructure.Business.Trading.Models.MarketState.Analysis.Strategy;
+using StockManager.Infrastructure.Business.Trading.Models.MarketState.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.MarketState.Info;
 using StockManager.Infrastructure.Business.Trading.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;

@@ -166,6 +166,7 @@
 			this.Ribbon = this.ribbonControl;
 			this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
 			this.StatusBar = this.ribbonStatusBar;
+			this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
 			((System.ComponentModel.ISupportInitialize)(this.ribbonControl)).EndInit();
 			((System.ComponentModel.ISupportInitialize)(this.dockManager)).EndInit();
 			this.dockPanel.ResumeLayout(false);

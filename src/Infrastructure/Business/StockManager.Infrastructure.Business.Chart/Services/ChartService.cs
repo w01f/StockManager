@@ -51,26 +51,43 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 			{
 				var indicatorDataset = new IndicatorDataset();
 				indicatorDataset.Settings = indicatorSettings;
+
+				var candles = indicatorSettings.CandlePeriod != settings.Period ?
+					(await CandleLoader.Load(
+						settings.CurrencyPairId,
+						indicatorSettings.CandlePeriod,
+						settings.CandleRangeSize,
+						settings.CurrentMoment,
+						_candleRepository,
+						_marketDataConnector))
+					.ToList() :
+					chartDataset.Candles;
+
 				switch (indicatorSettings.Type)
 				{
 					case IndicatorType.EMA:
 						indicatorDataset.Values = _indicatorComputingService.ComputeEMA(
-							chartDataset.Candles,
+							candles,
 							((CommonIndicatorSettings)indicatorSettings).Period);
 						break;
 					case IndicatorType.MACD:
 						indicatorDataset.Values = _indicatorComputingService.ComputeMACD(
-							chartDataset.Candles,
+							candles,
 							((MACDSettings)indicatorSettings).EMAPeriod1,
 							((MACDSettings)indicatorSettings).EMAPeriod2,
 							((MACDSettings)indicatorSettings).SignalPeriod);
 						break;
 					case IndicatorType.Stochastic:
 						indicatorDataset.Values = _indicatorComputingService.ComputeStochastic(
-							chartDataset.Candles,
+							candles,
 							((StochasticSettings)indicatorSettings).Period,
 							((StochasticSettings)indicatorSettings).SMAPeriodK,
 							((StochasticSettings)indicatorSettings).SMAPeriodD);
+						break;
+					case IndicatorType.RelativeStrengthIndex:
+						indicatorDataset.Values = _indicatorComputingService.ComputeRelativeStrengthIndex(
+							candles,
+							((CommonIndicatorSettings)indicatorSettings).Period);
 						break;
 					default:
 						throw new AnalysisException("Undefined indicator type");

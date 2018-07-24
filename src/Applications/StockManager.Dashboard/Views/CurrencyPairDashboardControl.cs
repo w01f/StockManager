@@ -43,19 +43,33 @@ namespace StockManager.Dashboard.Views
 				var chartSettings = new ChartSettings();
 				chartSettings.CurrencyPairId = Info.Id;
 				chartSettings.Period = CandlePeriod.Minute5;
-				chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0);
+				chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 2, 0, 0); // 1
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 9, 0, 0); // 2
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 16, 0, 0); // 3
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 23, 0, 0); // 4
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 6, 0, 0); // 5
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 13, 0, 0); // 6
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 20, 0, 0); // 7
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 3, 0, 0); // 8
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 10, 0, 0); // 9
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 17, 0, 0); // 10
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 0, 0, 0); // 11
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 7, 0, 0); // 12
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
 
 				//TODO Make it optional
 				chartSettings.Indicators.AddRange(new IndicatorSettings[]{
-					new CommonIndicatorSettings { Type = IndicatorType.EMA, Period = 5 },
-					new CommonIndicatorSettings { Type = IndicatorType.EMA, Period = 10 },
-					new MACDSettings { EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
-					new StochasticSettings { Period = 14, SMAPeriodK = 1, SMAPeriodD = 3}
+					new MACDSettings { CandlePeriod =CandlePeriod.Minute30,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
+					new MACDSettings { CandlePeriod =CandlePeriod.Minute5,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
+					new CommonIndicatorSettings {CandlePeriod =CandlePeriod.Minute5, Type = IndicatorType.RelativeStrengthIndex, Period = 14}
 				});
 
-				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
-
 				ConfigureIndicatorCharts(chartSettings.Indicators);
+
+				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
 
 				chartControl.DataSource = BuildOutputDataSet(chartDataset);
 				chartControl.RefreshData();
@@ -85,7 +99,11 @@ namespace StockManager.Dashboard.Views
 			table.Columns.Add("BuyPrice", typeof(Decimal));
 			table.Columns.Add("SellPrice", typeof(Decimal));
 
-			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(inputDataset.IndicatorData.Select(data => data.Settings).ToList()).Select(viewSettings => new DataColumn(viewSettings.IndicatorValue, typeof(Decimal))).ToArray());
+			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(
+				inputDataset.IndicatorData
+					.Select(data => data.Settings)
+					.ToList())
+				.Select(viewSettings => new DataColumn(viewSettings.IndicatorValue, typeof(Decimal))).ToArray());
 
 			foreach (var candle in inputDataset.Candles)
 			{
@@ -110,14 +128,28 @@ namespace StockManager.Dashboard.Views
 								.FirstOrDefault());
 							break;
 						case IndicatorType.MACD:
-							rowValues.AddRange(indicatorDataset.Values.OfType<MACDValue>()
+							var macdValues = indicatorDataset.Values
+								.OfType<MACDValue>()
 								.Where(value => value.Moment == candle.Moment)
-								.SelectMany(value => new object[] { value.MACD, value.Signal, value.Histogram }));
+								.Select(value => new object[] { value.MACD, value.Signal, value.Histogram })
+								.FirstOrDefault() ??
+								new object[] { DBNull.Value, DBNull.Value, DBNull.Value };
+							rowValues.AddRange(macdValues);
 							break;
 						case IndicatorType.Stochastic:
-							rowValues.AddRange(indicatorDataset.Values.OfType<StochasticValue>()
+							var stochasticValues = indicatorDataset.Values
+								.OfType<StochasticValue>()
 								.Where(value => value.Moment == candle.Moment)
-								.SelectMany(value => new object[] { value.K, value.D }));
+								.Select(value => new object[] { value.K, value.D })
+								.FirstOrDefault() ??
+								new object[] { DBNull.Value, DBNull.Value };
+							rowValues.AddRange(stochasticValues);
+							break;
+						case IndicatorType.RelativeStrengthIndex:
+							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
+								.Where(value => value.Moment == candle.Moment)
+								.Select(value => value.Value)
+								.FirstOrDefault());
 							break;
 						default:
 							throw new ArgumentOutOfRangeException("Undefined indicator type");
@@ -134,7 +166,8 @@ namespace StockManager.Dashboard.Views
 			var indicatorAddtionalPanels = IndicatorPanelSettings.GetAdditionalPanelsSettings();
 
 			//Build Series
-			var viewSettingsByIndicatorType = IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(indicators).GroupBy(viewSettings => viewSettings.IndicatorType);
+			var viewSettingsByIndicatorType = IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(indicators)
+				.GroupBy(viewSettings => new { viewSettings.IndicatorType, viewSettings.CandlePeriod });
 			foreach (var seriesViewSettings in viewSettingsByIndicatorType)
 			{
 				var indicatorSerieses = new List<Series>();
@@ -152,16 +185,22 @@ namespace StockManager.Dashboard.Views
 						case ViewType.Bar:
 							seriesView = new StackedBarSeriesView();
 							break;
+						case ViewType.Point:
+							seriesView = new PointSeriesView();
+							break;
 						default:
 							throw new ArgumentOutOfRangeException("Undefined chart view type");
 					}
 
 					var seriesSettings = new IndicatorSeriesColorSettings
 					{
-						IndicatorType = seriesViewSettings.Key
+						IndicatorType = seriesViewSettings.Key.IndicatorType,
+						CandlePeriod = seriesViewSettings.Key.CandlePeriod,
 					};
 					var availableColors = IndicatorSeriesColorSettings.AvailableSeriesColors
-						.Where(color => indicatorSeriesSettingsSet.Where(s => s.IndicatorType == seriesViewSettings.Key).All(s => s.SeriesColor != color))
+						.Where(color => indicatorSeriesSettingsSet
+							.Where(s => s.IndicatorType == seriesViewSettings.Key.IndicatorType && s.CandlePeriod == seriesViewSettings.Key.CandlePeriod)
+							.All(s => s.SeriesColor != color))
 						.ToList();
 					seriesSettings.SeriesColor = availableColors.Any() ? availableColors.First() : IndicatorSeriesColorSettings.LastDefaultColor;
 					indicatorSeriesSettingsSet.Add(seriesSettings);
@@ -178,7 +217,9 @@ namespace StockManager.Dashboard.Views
 					indicatorSerieses.Add(indicatorSeries);
 				}
 
-				var panelSettings = indicatorAddtionalPanels.FirstOrDefault(s => s.AssignedIndicators.Contains(seriesViewSettings.Key));
+				var panelSettings =
+					indicatorAddtionalPanels.FirstOrDefault(s =>
+						s.AssignedIndicators.Any(tuple => tuple.Item1 == seriesViewSettings.Key.IndicatorType && tuple.Item2 == seriesViewSettings.Key.CandlePeriod));
 				if (panelSettings != null)
 				{
 					if (panelSettings.Panel == null || panelSettings.AxisY == null)

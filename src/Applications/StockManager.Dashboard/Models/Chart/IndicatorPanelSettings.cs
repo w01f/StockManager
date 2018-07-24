@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using DevExpress.XtraCharts;
+using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Business.Chart.Models;
 
 namespace StockManager.Dashboard.Models.Chart
@@ -8,7 +10,7 @@ namespace StockManager.Dashboard.Models.Chart
 	{
 		public XYDiagramPaneBase Panel { get; set; }
 		public SecondaryAxisY AxisY { get; set; }
-		public IList<IndicatorType> AssignedIndicators { get; set; }
+		public IList<Tuple<IndicatorType, CandlePeriod>> AssignedIndicators { get; set; }
 
 		public static IList<IndicatorPanelSettings> GetAdditionalPanelsSettings()
 		{
@@ -18,14 +20,28 @@ namespace StockManager.Dashboard.Models.Chart
 				{
 					AssignedIndicators = new[]
 					{
-						IndicatorType.MACD,
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, CandlePeriod.Minute30),
 					}
 				},
 				new IndicatorPanelSettings
 				{
 					AssignedIndicators = new[]
 					{
-						IndicatorType.Stochastic,
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, CandlePeriod.Minute5),
+					}
+				},
+				new IndicatorPanelSettings
+				{
+					AssignedIndicators = new[]
+					{
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.Stochastic, CandlePeriod.Minute5),
+					}
+				},
+				new IndicatorPanelSettings
+				{
+					AssignedIndicators = new[]
+					{
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.RelativeStrengthIndex, CandlePeriod.Minute5),
 					}
 				},
 			};

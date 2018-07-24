@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Business.Chart.Models;
 
 namespace StockManager.Dashboard.Models.Chart
@@ -16,6 +17,7 @@ namespace StockManager.Dashboard.Models.Chart
 		public static Color LastDefaultColor = Color.Brown;
 
 		public IndicatorType IndicatorType { get; set; }
+		public CandlePeriod CandlePeriod { get; set; }
 		public Color SeriesColor { get; set; }
 	}
 }

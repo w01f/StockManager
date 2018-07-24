@@ -5,5 +5,6 @@
 		EMA,
 		MACD,
 		Stochastic,
+		RelativeStrengthIndex,
 	}
 }

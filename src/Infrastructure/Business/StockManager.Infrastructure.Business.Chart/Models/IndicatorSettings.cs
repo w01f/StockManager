@@ -1,7 +1,10 @@
-﻿namespace StockManager.Infrastructure.Business.Chart.Models
+﻿using StockManager.Domain.Core.Common.Enums;
+
+namespace StockManager.Infrastructure.Business.Chart.Models
 {
 	public abstract class IndicatorSettings
 	{
+		public CandlePeriod CandlePeriod { get; set; }
 		public IndicatorType Type { get; set; }
 	}
 
