@@ -44,6 +44,13 @@ namespace StockManager.Dashboard.Models.Chart
 						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.RelativeStrengthIndex, CandlePeriod.Minute5),
 					}
 				},
+				new IndicatorPanelSettings
+				{
+					AssignedIndicators = new[]
+					{
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.AccumulationDistribution, CandlePeriod.Minute5),
+					}
+				},
 			};
 		}
 	}

@@ -11,6 +11,7 @@ using StockManager.Dashboard.Models.Chart;
 using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Business.Chart.Models;
+using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Connectors.Common.Models;
 
 namespace StockManager.Dashboard.Views
@@ -45,26 +46,27 @@ namespace StockManager.Dashboard.Views
 				chartSettings.Period = CandlePeriod.Minute5;
 				chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 2, 0, 0); // 1
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 9, 0, 0); // 2
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 16, 0, 0); // 3
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 23, 0, 0); // 4
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 6, 0, 0); // 5
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 13, 0, 0); // 6
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 20, 0, 0); // 7
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 3, 0, 0); // 8
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 10, 0, 0); // 9
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 17, 0, 0); // 10
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 0, 0, 0); // 11
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 7, 0, 0); // 12
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
-				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 16, 0, 0); // 3
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 23, 0, 0); // 4
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 6, 0, 0); // 5
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 13, 0, 0); // 6
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 20, 0, 0); // 7
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 3, 0, 0); // 8
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 10, 0, 0); // 9
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 17, 0, 0); // 10
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 0, 0, 0); // 11
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 7, 0, 0); // 12
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
+																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
 
 				//TODO Make it optional
 				chartSettings.Indicators.AddRange(new IndicatorSettings[]{
-					new MACDSettings { CandlePeriod =CandlePeriod.Minute30,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
-					new MACDSettings { CandlePeriod =CandlePeriod.Minute5,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
-					new CommonIndicatorSettings {CandlePeriod =CandlePeriod.Minute5, Type = IndicatorType.RelativeStrengthIndex, Period = 14}
+					new MACDSettings { CandlePeriod =chartSettings.Period.GetHigherFramePeriod(),  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
+					new MACDSettings { CandlePeriod =chartSettings.Period,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
+					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.RelativeStrengthIndex, Period = 14},
+					//new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.AccumulationDistribution}
 				});
 
 				ConfigureIndicatorCharts(chartSettings.Indicators);
@@ -75,10 +77,7 @@ namespace StockManager.Dashboard.Views
 				chartControl.RefreshData();
 
 				var diagram = (XYDiagram)chartControl.Diagram;
-				var totalCandlesCount = chartDataset.Candles.Count;
-				var visibleCandles = chartDataset.Candles.Skip(totalCandlesCount - (Int32)(totalCandlesCount * 0.1)).ToList();
-				diagram.AxisX.VisualRange.SetMinMaxValues(visibleCandles.Min(candle => candle.Moment), visibleCandles.Max(candle => candle.Moment));
-				diagram.AxisY.VisualRange.SetMinMaxValues(visibleCandles.Min(candle => candle.MinPrice), visibleCandles.Max(candle => candle.MaxPrice));
+				diagram.AxisY.WholeRange.SetMinMaxValues(chartDataset.Candles.Min(candle => candle.MinPrice) * 0.99m, chartDataset.Candles.Max(candle => candle.MaxPrice) * 1.01m);
 			}
 			finally
 			{
@@ -95,6 +94,7 @@ namespace StockManager.Dashboard.Views
 			table.Columns.Add("ClosePrice", typeof(Decimal));
 			table.Columns.Add("MaxPrice", typeof(Decimal));
 			table.Columns.Add("MinPrice", typeof(Decimal));
+			table.Columns.Add("VolumeInBaseCurrency", typeof(Decimal));
 
 			table.Columns.Add("BuyPrice", typeof(Decimal));
 			table.Columns.Add("SellPrice", typeof(Decimal));
@@ -113,6 +113,8 @@ namespace StockManager.Dashboard.Views
 				rowValues.Add(candle.ClosePrice);
 				rowValues.Add(candle.MaxPrice);
 				rowValues.Add(candle.MinPrice);
+
+				rowValues.Add(candle.VolumeInBaseCurrency);
 
 				var tradingData = inputDataset.TradingData.Single(data => data.Moment == candle.Moment);
 				rowValues.Add(tradingData.BuyPrice);
@@ -146,6 +148,12 @@ namespace StockManager.Dashboard.Views
 							rowValues.AddRange(stochasticValues);
 							break;
 						case IndicatorType.RelativeStrengthIndex:
+							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
+								.Where(value => value.Moment == candle.Moment)
+								.Select(value => value.Value)
+								.FirstOrDefault());
+							break;
+						case IndicatorType.AccumulationDistribution:
 							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
 								.Where(value => value.Moment == candle.Moment)
 								.Select(value => value.Value)

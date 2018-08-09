@@ -6,5 +6,6 @@
 		MACD,
 		Stochastic,
 		RelativeStrengthIndex,
+		AccumulationDistribution,
 	}
 }

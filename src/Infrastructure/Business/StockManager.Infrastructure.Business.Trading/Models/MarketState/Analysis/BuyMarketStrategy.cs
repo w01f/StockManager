@@ -22,7 +22,7 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 			IIndicatorComputingService indicatorComputingService
 		)
 		{
-			var conditionCheckingResult = new ConditionCheckingResult();
+			var conditionCheckingResult = new ConditionCheckingResult() { ResultType = ConditionCheckingResultType.Failed };
 
 			var firstFrameMACDSettings = new MACDSettings
 			{
@@ -53,23 +53,23 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 			//If all valuable parameters are not null
 			if (firstFrameCurrentMACDValue?.MACD == null ||
 				firstFrameCurrentMACDValue.Signal == null ||
+				firstFrameCurrentMACDValue.Histogram == null ||
 				firstFrameOnePreviouseMACDValue?.MACD == null ||
-				firstFrameOnePreviouseMACDValue.Signal == null)
+				firstFrameOnePreviouseMACDValue.Signal == null ||
+				firstFrameOnePreviouseMACDValue.Histogram == null)
 			{
-				conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 				return conditionCheckingResult;
 			}
 
 			//if MACD higher then Signal then it is Bullish trend
-			if (!(firstFrameCurrentMACDValue.MACD.Value > firstFrameCurrentMACDValue.Signal.Value))
+			//if Histogram is rising 
+			if (!(Math.Round(firstFrameCurrentMACDValue.MACD.Value - firstFrameCurrentMACDValue.Signal.Value, 4) >= 0))
 			{
-				conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 				return conditionCheckingResult;
 			}
 
-			var isGrowingBullishTrend = firstFrameCurrentMACDValue.Histogram > firstFrameOnePreviouseMACDValue.Histogram &&
-				(Math.Abs(firstFrameCurrentMACDValue.MACD.Value - firstFrameCurrentMACDValue.Signal.Value) >
-					Math.Abs(firstFrameOnePreviouseMACDValue.MACD.Value - firstFrameOnePreviouseMACDValue.Signal.Value) ||
+			var isBullishTrendRising = Math.Round(firstFrameCurrentMACDValue.Histogram.Value - firstFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0 &&
+				(firstFrameCurrentMACDValue.MACD.Value - firstFrameCurrentMACDValue.Signal.Value > firstFrameOnePreviouseMACDValue.MACD.Value - firstFrameOnePreviouseMACDValue.Signal.Value ||
 				firstFrameOnePreviouseMACDValue.MACD.Value < firstFrameOnePreviouseMACDValue.Signal.Value);
 
 			var secondFrameRSISettings = new CommonIndicatorSettings()
@@ -94,21 +94,37 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 				candleRepository,
 				marketDataConnector)).ToList();
 
+			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
+			var secondFrameOnePreviouseCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
+
+			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null ||
+				secondFrameOnePreviouseCandle?.VolumeInBaseCurrency == null)
+			{
+				return conditionCheckingResult;
+			}
+
+			//if previouse volum lower then current 
+			//if price changing direction from previouse candle to current
+			if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
+				  secondFrameOnePreviouseCandle.IsFallingCandle))
+			{
+				return conditionCheckingResult;
+			}
+
 			var secondFrameRSIValues = indicatorComputingService.ComputeRelativeStrengthIndex(
 					secondFrameCandles,
 					secondFrameRSISettings.Period)
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
-			var secondFrameCurentRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 1);
+			var secondFrameCurrentRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 1);
 			var secondFrameOnePreviouseRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 2);
 			var secondFrameTwoPreviouseRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 3);
 
-			if (secondFrameCurentRSIValue?.Value == null ||
+			if (secondFrameCurrentRSIValue?.Value == null ||
 				secondFrameOnePreviouseRSIValue?.Value == null ||
 				secondFrameTwoPreviouseRSIValue?.Value == null)
 			{
-				conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 				return conditionCheckingResult;
 			}
 
@@ -119,19 +135,19 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 				.GetMaximumValues()
 				.Max();
 
-			var lowRangeBroder = secondFrameMaxRSIValue * 2 / 3;
+			var lowRangeBroder = secondFrameMaxRSIValue * (isBullishTrendRising ? 0.8m : 0.67m);
 
 			//if RSI turning from minimum 
 			//if Prev RSI lower then lowRangeBroder
-			if (!(secondFrameCurentRSIValue.Value > secondFrameOnePreviouseRSIValue.Value &&
-				  secondFrameTwoPreviouseRSIValue.Value > secondFrameOnePreviouseRSIValue.Value &&
-				  secondFrameOnePreviouseRSIValue.Value < lowRangeBroder))
+			if (!(Math.Round(secondFrameCurrentRSIValue.Value.Value - secondFrameOnePreviouseRSIValue.Value.Value) >= 0 &&
+				  Math.Round(secondFrameTwoPreviouseRSIValue.Value.Value - secondFrameOnePreviouseRSIValue.Value.Value) >= 0 &&
+				  Math.Round(secondFrameOnePreviouseRSIValue.Value.Value - lowRangeBroder) < 0 &&
+				  Math.Round(secondFrameTwoPreviouseRSIValue.Value.Value - secondFrameMaxRSIValue) < 0))
 			{
-				conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 				return conditionCheckingResult;
 			}
 
-			if (!isGrowingBullishTrend)
+			if (!isBullishTrendRising)
 			{
 				var secondFrameMACDValues = indicatorComputingService.ComputeMACD(
 						secondFrameCandles,
@@ -152,35 +168,28 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 					secondFrameOnePreviouseMACDValue.Signal == null ||
 					secondFrameOnePreviouseMACDValue.Histogram == null)
 				{
-					conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 					return conditionCheckingResult;
 				}
 
-				//If Histogram is lower then avg minimum
-				var avgHistogramMinimum = secondFrameMACDValues
-					.Where(value => value.Histogram.HasValue)
-					.Select(value => value.Histogram.Value)
-					.ToList()
-					.GetAverageMinimum();
-				if (secondFrameCurentMACDValue.Histogram > secondFrameOnePreviouseMACDValue.Histogram || 
-					secondFrameMACDValues.Skip(candleRangeSize - IndicatorSettings.DeviationSize).Min(value => value.Histogram) < avgHistogramMinimum) 
+				//If Histogram is growning
+				if (Math.Round(secondFrameCurentMACDValue.Histogram.Value - secondFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0)
 				{
 					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
-					return conditionCheckingResult;
 				}
-
-				if (!(secondFrameCurentMACDValue.MACD.Value > 0 &&
-					  secondFrameCurentMACDValue.MACD.Value > secondFrameCurentMACDValue.Signal.Value &&
-					  (Math.Abs(secondFrameCurentMACDValue.MACD.Value - secondFrameCurentMACDValue.Signal.Value) >
-					   Math.Abs(secondFrameOnePreviouseMACDValue.MACD.Value - secondFrameOnePreviouseMACDValue.Signal.Value) ||
-					   secondFrameOnePreviouseMACDValue.MACD.Value < secondFrameOnePreviouseMACDValue.Signal.Value)))
+				else if (secondFrameCurentMACDValue.MACD.Value > 0 &&
+					secondFrameCurentMACDValue.MACD.Value > secondFrameCurentMACDValue.Signal.Value &&
+					(secondFrameCurentMACDValue.MACD.Value - secondFrameCurentMACDValue.Signal.Value >
+					 secondFrameOnePreviouseMACDValue.MACD.Value - secondFrameOnePreviouseMACDValue.Signal.Value ||
+					 secondFrameOnePreviouseMACDValue.MACD.Value < secondFrameOnePreviouseMACDValue.Signal.Value))
 				{
-					conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
-					return conditionCheckingResult;
+					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 				}
+				else
+					conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
 			}
+			else
+				conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 
-			conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 			return conditionCheckingResult;
 		}
 	}

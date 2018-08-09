@@ -11,5 +11,8 @@ namespace StockManager.Infrastructure.Common.Models.Market
 		public decimal MinPrice { get; set; }
 		public decimal VolumeInBaseCurrency { get; set; }
 		public decimal VolumeInQuoteCurrency { get; set; }
+
+		public bool IsRisingCandle => ClosePrice > OpenPrice;
+		public bool IsFallingCandle => ClosePrice <= OpenPrice;
 	}
 }

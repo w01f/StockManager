@@ -69,5 +69,19 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 
 			return outputValues;
 		}
+
+		public IList<BaseIndicatorValue> ComputeAccumulationDistribution(IList<Candle> candles, Int32 period)
+		{
+			var indicator = new AccumulationDistributionLine(candles.Select(candle => candle.ToInnerModel()));
+			var innerValues = indicator.Compute();
+
+			var outputValues = new List<BaseIndicatorValue>();
+
+			outputValues.AddRange(innerValues
+				.Where(value => value.DateTime.HasValue)
+				.Select(value => value.ToOuterModel()));
+
+			return outputValues;
+		}
 	}
 }

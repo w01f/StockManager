@@ -125,6 +125,18 @@ namespace StockManager.Dashboard.Models.Chart
 							ViewType = ViewType.Line
 						});
 						break;
+					case IndicatorType.AccumulationDistribution:
+						viewSettings.Add(new IndicatorSeriesViewSettings
+						{
+							IndicatorType = IndicatorType.AccumulationDistribution,
+							CandlePeriod = indicatorSetting.CandlePeriod,
+							IndicatorValue = String.Format("{0}_{1}_{2}",
+								indicatorSetting.Type.ToString(),
+								indicatorSetting.CandlePeriod.ToString(),
+								((CommonIndicatorSettings)indicatorSetting).Period),
+							ViewType = ViewType.Line
+						});
+						break;
 				}
 			}
 

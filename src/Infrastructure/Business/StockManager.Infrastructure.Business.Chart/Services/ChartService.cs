@@ -89,6 +89,11 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 							candles,
 							((CommonIndicatorSettings)indicatorSettings).Period);
 						break;
+					case IndicatorType.AccumulationDistribution:
+						indicatorDataset.Values = _indicatorComputingService.ComputeAccumulationDistribution(
+							candles,
+							((CommonIndicatorSettings)indicatorSettings).Period);
+						break;
 					default:
 						throw new AnalysisException("Undefined indicator type");
 				}

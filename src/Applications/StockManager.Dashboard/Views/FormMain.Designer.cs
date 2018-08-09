@@ -83,7 +83,7 @@
 			// 
 			this.dockManager.DockingOptions.HideImmediatelyOnAutoHide = true;
 			this.dockManager.Form = this;
-			this.dockManager.RootPanels.AddRange(new DevExpress.XtraBars.Docking.DockPanel[] {
+			this.dockManager.HiddenPanels.AddRange(new DevExpress.XtraBars.Docking.DockPanel[] {
             this.dockPanel});
 			this.dockManager.TopZIndexControls.AddRange(new string[] {
             "DevExpress.XtraBars.BarDockControl",
@@ -113,8 +113,11 @@
 			this.dockPanel.Options.ShowCloseButton = false;
 			this.dockPanel.Options.ShowMaximizeButton = false;
 			this.dockPanel.OriginalSize = new System.Drawing.Size(208, 200);
+			this.dockPanel.SavedDock = DevExpress.XtraBars.Docking.DockingStyle.Left;
+			this.dockPanel.SavedIndex = 0;
 			this.dockPanel.Size = new System.Drawing.Size(208, 539);
 			this.dockPanel.Text = "Pairs";
+			this.dockPanel.Visibility = DevExpress.XtraBars.Docking.DockVisibility.Hidden;
 			// 
 			// dockPanel_Container
 			// 
@@ -159,7 +162,6 @@
 			this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			this.ClientSize = new System.Drawing.Size(1000, 706);
-			this.Controls.Add(this.dockPanel);
 			this.Controls.Add(this.ribbonStatusBar);
 			this.Controls.Add(this.ribbonControl);
 			this.Name = "FormMain";

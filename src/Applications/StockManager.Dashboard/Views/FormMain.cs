@@ -74,7 +74,19 @@ namespace StockManager.Dashboard.Views
 		#region Event Handlers
 		private async void OnFormShown(Object sender, EventArgs e)
 		{
-			await LoadCurrencyPairs();
+			//await LoadCurrencyPairs();
+
+			var dashboard = CompositionRoot.Resolve<CurrencyPairDashboardControl>(new ConstructorArgument("info", new CurrencyPair() { Id = "ETHBTC" }));
+			tabbedView.AddDocument(dashboard);
+			try
+			{
+				await dashboard.LoadData();
+			}
+			catch (Exception exception)
+			{
+				MessageBox.Show(this, exception.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+			}
+			tabbedView.ActivateDocument(dashboard);
 		}
 
 		private async void OnAccordionElementClick(object sender, ElementClickEventArgs e)
