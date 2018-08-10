@@ -90,7 +90,7 @@
 			series1.LegendName = "Default Legend";
 			series1.Name = "Candles";
 			series1.ValueDataMembersSerializable = "MinPrice;MaxPrice;OpenPrice;ClosePrice";
-			candleStickSeriesView1.LevelLineLength = 0.8D;
+			candleStickSeriesView1.LevelLineLength = 0.4D;
 			candleStickSeriesView1.LineThickness = 1;
 			series1.View = candleStickSeriesView1;
 			series2.ArgumentDataMember = "Moment";

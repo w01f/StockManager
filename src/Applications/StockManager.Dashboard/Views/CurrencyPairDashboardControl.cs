@@ -44,22 +44,24 @@ namespace StockManager.Dashboard.Views
 				var chartSettings = new ChartSettings();
 				chartSettings.CurrencyPairId = Info.Id;
 				chartSettings.Period = CandlePeriod.Minute5;
-				chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 2, 0, 0); // 1
+				chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 19, 55, 0);
+
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 2, 0, 0); // 1
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 9, 0, 0); // 2
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 16, 0, 0); // 3
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 23, 0, 0); // 4
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 6, 0, 0); // 5
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 13, 0, 0); // 6
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 20, 0, 0); // 7
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 3, 0, 0); // 8
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 10, 0, 0); // 9
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 17, 0, 0); // 10
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 0, 0, 0); // 11
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 7, 0, 0); // 12
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
-																				   //chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 16, 0, 0); // 3
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 23, 0, 0); // 4
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 6, 0, 0); // 5
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 13, 0, 0); // 6
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 20, 0, 0); // 7
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 3, 0, 0); // 8
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 10, 0, 0); // 9
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 21, 17, 0, 0); // 10
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 0, 0, 0); // 11
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 7, 0, 0); // 12
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
+				chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
 
 				//TODO Make it optional
 				chartSettings.Indicators.AddRange(new IndicatorSettings[]{
@@ -69,15 +71,15 @@ namespace StockManager.Dashboard.Views
 					//new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.AccumulationDistribution}
 				});
 
-				ConfigureIndicatorCharts(chartSettings.Indicators);
+				ConfigureIndicatorCharts(chartSettings);
 
 				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
 
-				chartControl.DataSource = BuildOutputDataSet(chartDataset);
+				chartControl.DataSource = BuildOutputDataSet(chartDataset, chartSettings);
 				chartControl.RefreshData();
 
 				var diagram = (XYDiagram)chartControl.Diagram;
-				diagram.AxisY.WholeRange.SetMinMaxValues(chartDataset.Candles.Min(candle => candle.MinPrice) * 0.99m, chartDataset.Candles.Max(candle => candle.MaxPrice) * 1.01m);
+				diagram.AxisY.WholeRange.SetMinMaxValues(chartDataset.Candles.Min(candle => candle.MinPrice) * 0.999m, chartDataset.Candles.Max(candle => candle.MaxPrice) * 1.001m);
 			}
 			finally
 			{
@@ -85,7 +87,7 @@ namespace StockManager.Dashboard.Views
 			}
 		}
 
-		private DataTable BuildOutputDataSet(ChartDataset inputDataset)
+		private DataTable BuildOutputDataSet(ChartDataset inputDataset, ChartSettings chartSettings)
 		{
 			var table = new DataTable("ChartData");
 
@@ -99,10 +101,7 @@ namespace StockManager.Dashboard.Views
 			table.Columns.Add("BuyPrice", typeof(Decimal));
 			table.Columns.Add("SellPrice", typeof(Decimal));
 
-			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(
-				inputDataset.IndicatorData
-					.Select(data => data.Settings)
-					.ToList())
+			table.Columns.AddRange(IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(chartSettings)
 				.Select(viewSettings => new DataColumn(viewSettings.IndicatorValue, typeof(Decimal))).ToArray());
 
 			foreach (var candle in inputDataset.Candles)
@@ -168,13 +167,13 @@ namespace StockManager.Dashboard.Views
 			return table;
 		}
 
-		private void ConfigureIndicatorCharts(IList<IndicatorSettings> indicators)
+		private void ConfigureIndicatorCharts(ChartSettings chartSettings)
 		{
 			var indicatorSeriesSettingsSet = new List<IndicatorSeriesColorSettings>();
-			var indicatorAddtionalPanels = IndicatorPanelSettings.GetAdditionalPanelsSettings();
+			var indicatorAddtionalPanels = IndicatorPanelSettings.GetAdditionalPanelsSettings(chartSettings.Period);
 
 			//Build Series
-			var viewSettingsByIndicatorType = IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(indicators)
+			var viewSettingsByIndicatorType = IndicatorSeriesViewSettings.GetIndicatorSeriesViewSettings(chartSettings)
 				.GroupBy(viewSettings => new { viewSettings.IndicatorType, viewSettings.CandlePeriod });
 			foreach (var seriesViewSettings in viewSettingsByIndicatorType)
 			{

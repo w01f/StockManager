@@ -13,7 +13,7 @@ using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analysis
 {
-	class BuyMarketStrategy //: BaseAnalysisStrategy
+	class TripleFrameLongMarketStrategy
 	{
 		public async Task<ConditionCheckingResult> CheckConditions(
 			TradingSettings settings,
@@ -51,26 +51,22 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 			var firstFrameOnePreviouseMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
 
 			//If all valuable parameters are not null
-			if (firstFrameCurrentMACDValue?.MACD == null ||
-				firstFrameCurrentMACDValue.Signal == null ||
-				firstFrameCurrentMACDValue.Histogram == null ||
-				firstFrameOnePreviouseMACDValue?.MACD == null ||
-				firstFrameOnePreviouseMACDValue.Signal == null ||
-				firstFrameOnePreviouseMACDValue.Histogram == null)
+			if (firstFrameCurrentMACDValue?.Histogram == null ||
+				firstFrameOnePreviouseMACDValue?.Histogram == null)
 			{
 				return conditionCheckingResult;
 			}
 
 			//if MACD higher then Signal then it is Bullish trend
 			//if Histogram is rising 
-			if (!(Math.Round(firstFrameCurrentMACDValue.MACD.Value - firstFrameCurrentMACDValue.Signal.Value, 4) >= 0))
+			if (!(Math.Round(firstFrameCurrentMACDValue.Histogram.Value, 5) >= 0))
 			{
 				return conditionCheckingResult;
 			}
 
-			var isBullishTrendRising = Math.Round(firstFrameCurrentMACDValue.Histogram.Value - firstFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0 &&
-				(firstFrameCurrentMACDValue.MACD.Value - firstFrameCurrentMACDValue.Signal.Value > firstFrameOnePreviouseMACDValue.MACD.Value - firstFrameOnePreviouseMACDValue.Signal.Value ||
-				firstFrameOnePreviouseMACDValue.MACD.Value < firstFrameOnePreviouseMACDValue.Signal.Value);
+			var isBullishTrendRising = Math.Round(firstFrameCurrentMACDValue.Histogram.Value - firstFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0;
+			var isBullishTrendJustBeganRising = isBullishTrendRising &&
+												Math.Round(firstFrameOnePreviouseMACDValue.Histogram.Value, 4) < 0;
 
 			var secondFrameRSISettings = new CommonIndicatorSettings()
 			{
@@ -106,7 +102,7 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 			//if previouse volum lower then current 
 			//if price changing direction from previouse candle to current
 			if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
-				  secondFrameOnePreviouseCandle.IsFallingCandle))
+				  (secondFrameOnePreviouseCandle.IsFallingCandle || secondFrameCurrentCandle.OpenPrice < secondFrameOnePreviouseCandle.ClosePrice)))
 			{
 				return conditionCheckingResult;
 			}
@@ -147,7 +143,7 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 				return conditionCheckingResult;
 			}
 
-			if (!isBullishTrendRising)
+			if (!isBullishTrendJustBeganRising)
 			{
 				var secondFrameMACDValues = indicatorComputingService.ComputeMACD(
 						secondFrameCandles,
@@ -157,35 +153,63 @@ namespace StockManager.Infrastructure.Business.Trading.Models.MarketState.Analys
 					.OfType<MACDValue>()
 					.ToList();
 
-				var secondFrameCurentMACDValue = secondFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 1);
-				var secondFrameOnePreviouseMACDValue = secondFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
+				var secondFrameCurentMACDValue = secondFrameMACDValues.ElementAtOrDefault(secondFrameMACDValues.Count - 1);
+				var secondFrameOnePreviouseMACDValue = secondFrameMACDValues.ElementAtOrDefault(secondFrameMACDValues.Count - 2);
 
 				//If all valuable parameters are not null
 				if (secondFrameCurentMACDValue?.MACD == null ||
-					secondFrameCurentMACDValue.Signal == null ||
 					secondFrameCurentMACDValue.Histogram == null ||
-					secondFrameOnePreviouseMACDValue?.MACD == null ||
-					secondFrameOnePreviouseMACDValue.Signal == null ||
-					secondFrameOnePreviouseMACDValue.Histogram == null)
+					secondFrameOnePreviouseMACDValue?.Histogram == null)
 				{
 					return conditionCheckingResult;
 				}
 
 				//If Histogram is growning
-				if (Math.Round(secondFrameCurentMACDValue.Histogram.Value - secondFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0)
+				if (Math.Round(secondFrameCurentMACDValue.Histogram.Value - secondFrameOnePreviouseMACDValue.Histogram.Value, 6) >= 0)
 				{
 					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 				}
-				else if (secondFrameCurentMACDValue.MACD.Value > 0 &&
-					secondFrameCurentMACDValue.MACD.Value > secondFrameCurentMACDValue.Signal.Value &&
-					(secondFrameCurentMACDValue.MACD.Value - secondFrameCurentMACDValue.Signal.Value >
-					 secondFrameOnePreviouseMACDValue.MACD.Value - secondFrameOnePreviouseMACDValue.Signal.Value ||
-					 secondFrameOnePreviouseMACDValue.MACD.Value < secondFrameOnePreviouseMACDValue.Signal.Value))
+				else if (secondFrameCurentMACDValue.MACD.Value > 0)
 				{
 					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 				}
 				else
 					conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
+
+				if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
+				{
+					var thirdFrameMACDSettings = new MACDSettings
+					{
+						EMAPeriod1 = 12,
+						EMAPeriod2 = 26,
+						SignalPeriod = 9
+					};
+
+					var thirdFrameCandles = (await CandleLoader.Load(
+						settings.CurrencyPairId,
+						settings.Period.GetLowerFramePeriod(),
+						thirdFrameMACDSettings.EMAPeriod2,
+						settings.CurrentMoment,
+						candleRepository,
+						marketDataConnector)).ToList();
+
+					var thirdFrameMACDValues = indicatorComputingService.ComputeMACD(
+							thirdFrameCandles,
+							thirdFrameMACDSettings.EMAPeriod1,
+							thirdFrameMACDSettings.EMAPeriod2,
+							thirdFrameMACDSettings.SignalPeriod)
+						.OfType<MACDValue>()
+						.ToList();
+
+					var thirdFrameCurentMACDValue = thirdFrameMACDValues.ElementAtOrDefault(thirdFrameMACDValues.Count - 1);
+					var thirdFrameOnePreviouseMACDValue = thirdFrameMACDValues.ElementAtOrDefault(thirdFrameMACDValues.Count - 2);
+
+					//If Histogram is growning
+					if (!(Math.Round((thirdFrameCurentMACDValue?.Histogram - thirdFrameOnePreviouseMACDValue?.Histogram) ?? -1, 5) >= 0))
+					{
+						conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
+					}
+				}
 			}
 			else
 				conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;

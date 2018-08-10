@@ -14,11 +14,11 @@ namespace StockManager.Dashboard.Models.Chart
 		public ViewType ViewType { get; set; }
 
 
-		public static IList<IndicatorSeriesViewSettings> GetIndicatorSeriesViewSettings(IList<IndicatorSettings> indicatorSettings)
+		public static IList<IndicatorSeriesViewSettings> GetIndicatorSeriesViewSettings(ChartSettings chartSettings)
 		{
 			var viewSettings = new List<IndicatorSeriesViewSettings>();
 
-			foreach (var indicatorSetting in indicatorSettings)
+			foreach (var indicatorSetting in chartSettings.Indicators)
 			{
 				switch (indicatorSetting.Type)
 				{
@@ -34,15 +34,10 @@ namespace StockManager.Dashboard.Models.Chart
 					case IndicatorType.MACD:
 
 						ViewType macdViewType;
-						switch (indicatorSetting.CandlePeriod)
-						{
-							case CandlePeriod.Minute5:
-								macdViewType = ViewType.Line;
-								break;
-							default:
-								macdViewType = ViewType.Point;
-								break;
-						}
+						if (indicatorSetting.CandlePeriod == chartSettings.Period)
+							macdViewType = ViewType.Line;
+						else
+							macdViewType = ViewType.Point;
 
 						viewSettings.AddRange(new[]
 						{

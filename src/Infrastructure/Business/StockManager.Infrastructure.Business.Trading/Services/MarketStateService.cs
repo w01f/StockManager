@@ -28,7 +28,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services
 		{
 			var marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Hold };
 
-			var bullishTrendIdentificationStrategy = new BuyMarketStrategy();
+			var bullishTrendIdentificationStrategy = new TripleFrameLongMarketStrategy();
 			var conditionCheckingResult = await bullishTrendIdentificationStrategy.CheckConditions(
 				settings,
 				_candleRepository,
@@ -45,15 +45,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services
 		{
 			var marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Hold };
 
-			var bearishTrendIdentificationStrategy = new SellMarketStrategy();
-			var conditionCheckingResult = await bearishTrendIdentificationStrategy.CheckConditions(
-				settings,
-				_candleRepository,
-				_marketDataConnector,
-				_indicatorComputingService
-			);
-			if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
-				marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Sell };
+			//var bearishTrendIdentificationStrategy = new SellMarketStrategy();
+			//var conditionCheckingResult = await bearishTrendIdentificationStrategy.CheckConditions(
+			//	settings,
+			//	_candleRepository,
+			//	_marketDataConnector,
+			//	_indicatorComputingService
+			//);
+			//if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
+			//	marketInfo = new MarketInfo { MarketSignal = MarketSignalType.Sell };
 
 			return marketInfo;
 		}

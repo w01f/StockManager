@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using DevExpress.XtraCharts;
 using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Business.Chart.Models;
+using StockManager.Infrastructure.Business.Trading.Helpers;
 
 namespace StockManager.Dashboard.Models.Chart
 {
@@ -12,7 +13,7 @@ namespace StockManager.Dashboard.Models.Chart
 		public SecondaryAxisY AxisY { get; set; }
 		public IList<Tuple<IndicatorType, CandlePeriod>> AssignedIndicators { get; set; }
 
-		public static IList<IndicatorPanelSettings> GetAdditionalPanelsSettings()
+		public static IList<IndicatorPanelSettings> GetAdditionalPanelsSettings(CandlePeriod period)
 		{
 			return new[]
 			{
@@ -20,35 +21,35 @@ namespace StockManager.Dashboard.Models.Chart
 				{
 					AssignedIndicators = new[]
 					{
-						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, CandlePeriod.Minute30),
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, period.GetHigherFramePeriod()),
 					}
 				},
 				new IndicatorPanelSettings
 				{
 					AssignedIndicators = new[]
 					{
-						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, CandlePeriod.Minute5),
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.MACD, period),
 					}
 				},
 				new IndicatorPanelSettings
 				{
 					AssignedIndicators = new[]
 					{
-						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.Stochastic, CandlePeriod.Minute5),
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.Stochastic, period),
 					}
 				},
 				new IndicatorPanelSettings
 				{
 					AssignedIndicators = new[]
 					{
-						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.RelativeStrengthIndex, CandlePeriod.Minute5),
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.RelativeStrengthIndex, period),
 					}
 				},
 				new IndicatorPanelSettings
 				{
 					AssignedIndicators = new[]
 					{
-						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.AccumulationDistribution, CandlePeriod.Minute5),
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.AccumulationDistribution, period),
 					}
 				},
 			};
