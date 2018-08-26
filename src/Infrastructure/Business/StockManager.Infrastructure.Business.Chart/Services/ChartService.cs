@@ -7,8 +7,8 @@ using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Common.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
-using StockManager.Infrastructure.Business.Trading.Models.Trading;
-using StockManager.Infrastructure.Business.Trading.Services;
+using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using CommonIndicatorSettings = StockManager.Infrastructure.Business.Chart.Models.CommonIndicatorSettings;
 using IndicatorType = StockManager.Infrastructure.Business.Chart.Models.IndicatorType;
@@ -22,17 +22,17 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 		private readonly IRepository<Domain.Core.Entities.Market.Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
-		private readonly MarketStateService _marketStateService;
+		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 
 		public ChartService(IRepository<Domain.Core.Entities.Market.Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService,
-			MarketStateService marketStateService)
+			IMarketNewPositionAnalysisService marketNewPositionAnalysisService)
 		{
 			_candleRepository = candleRepository;
 			_marketDataConnector = marketDataConnector;
 			_indicatorComputingService = indicatorComputingService;
-			_marketStateService = marketStateService;
+			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 		}
 
 		public async Task<ChartDataset> GetChartData(ChartSettings settings)
@@ -104,24 +104,24 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 			{
 				CurrencyPairId = settings.CurrencyPairId,
 				Period = settings.Period,
-				CurrentMoment = settings.CurrentMoment,
+				Moment = settings.CurrentMoment,
 				CandleRangeSize = settings.CandleRangeSize
 			};
 
 			foreach (var candle in chartDataset.Candles)
 			{
 				var tradingSettings = new TradingSettings().InitializeFromTemplate(defaultTradindSettings);
-				tradingSettings.CurrentMoment = candle.Moment;
-				var marketInfo = await _marketStateService.EstimateBuyOption(tradingSettings);
+				tradingSettings.Moment = candle.Moment;
+				var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tradingSettings);
 
 				var tradingData = new TradingData
 				{
 					Moment = candle.Moment
 				};
 
-				switch (marketInfo.MarketSignal)
+				switch (newPositionInfo.PositionType)
 				{
-					case MarketSignalType.Buy:
+					case NewMarketPositionType.Buy:
 						tradingData.BuyPrice = candle.ClosePrice;
 						break;
 				}

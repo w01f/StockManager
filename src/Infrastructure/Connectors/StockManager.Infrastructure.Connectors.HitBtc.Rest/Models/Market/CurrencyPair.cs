@@ -20,10 +20,10 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market
 		public decimal TickSize { get; set; }
 
 		[JsonProperty(PropertyName = "takeLiquidityRate")]
-		public decimal? TakeLiquidityRate { get; set; }
+		public decimal TakeLiquidityRate { get; set; }
 
 		[JsonProperty(PropertyName = "provideLiquidityRate")]
-		public decimal? ProvideLiquidityRate { get; set; }
+		public decimal ProvideLiquidityRate { get; set; }
 
 		[JsonProperty(PropertyName = "feeCurrency")]
 		public string FeeCurrencyId { get; set; }

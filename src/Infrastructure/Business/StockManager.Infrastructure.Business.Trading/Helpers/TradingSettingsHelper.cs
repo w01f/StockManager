@@ -1,5 +1,5 @@
 ﻿using StockManager.Domain.Core.Common.Enums;
-using StockManager.Infrastructure.Business.Trading.Models.Trading;
+using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 
 namespace StockManager.Infrastructure.Business.Trading.Helpers
 {
@@ -7,7 +7,7 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 	{
 		public static TradingSettings InitializeFromTemplate(this TradingSettings target, TradingSettings template)
 		{
-			target.CurrentMoment = template.CurrentMoment;
+			target.Moment = template.Moment;
 			target.CurrencyPairId = template.CurrencyPairId;
 			target.Period = template.Period;
 			target.CandleRangeSize = template.CandleRangeSize;

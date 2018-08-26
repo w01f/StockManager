@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Common.Enums;
-using StockManager.Infrastructure.Business.Trading.Models.Trading;
-using StockManager.Infrastructure.Business.Trading.Services;
+using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
 
 namespace StockManager.TradingBot
 {
@@ -11,7 +11,7 @@ namespace StockManager.TradingBot
 		static int Main(string[] args)
 		{
 			CompositionRoot.Initialize(new DependencyInitializer());
-			var tradingService = CompositionRoot.Resolve<TradingService>();
+			var tradingService = CompositionRoot.Resolve<ManagementService>();
 
 			var result = 0;
 
@@ -19,8 +19,9 @@ namespace StockManager.TradingBot
 			{
 				CurrencyPairId = "ETHBTC",
 				Period = CandlePeriod.Minute5,
-				CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0),
-				CandleRangeSize = 100
+				Moment = new DateTime(2018, 03, 23, 12, 0, 0),
+				CandleRangeSize = 100,
+				BaseOrderSide = OrderSide.Buy
 			};
 
 			Task.Run(async () =>

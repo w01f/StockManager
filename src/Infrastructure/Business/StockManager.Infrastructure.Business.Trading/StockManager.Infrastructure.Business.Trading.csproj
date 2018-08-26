@@ -7,7 +7,17 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
     <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
+    <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Logging\StockManager.Infrastructure.Utilities.Logging.csproj" />
     <ProjectReference Include="..\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>C:\Users\Alexey Krupnov\.nuget\packages\newtonsoft.json\11.0.2\lib\netstandard2.0\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions">
+      <HintPath>C:\Program Files\dotnet\sdk\NuGetFallbackFolder\microsoft.netcore.app\2.0.0\ref\netcoreapp2.0\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
