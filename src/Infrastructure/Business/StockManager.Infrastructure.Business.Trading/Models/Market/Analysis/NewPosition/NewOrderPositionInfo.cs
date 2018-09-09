@@ -4,12 +4,13 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Ne
 {
 	public class NewOrderPositionInfo : NewPositionInfo
 	{
-		public decimal Price { get; set; }
-		public decimal StopPrice { get; set; }
+		public decimal OpenPrice { get; set; }
+		public decimal OpenStopPrice { get; set; }
+
+		public decimal ClosePrice { get; set; }
+		public decimal CloseStopPrice { get; set; }
 
 		public decimal StopLossPrice { get; set; }
-		public decimal StopLossStopPrice { get; set; }
-
 
 		public NewOrderPositionInfo(NewMarketPositionType positionType) : base(positionType)
 		{

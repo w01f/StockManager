@@ -12,12 +12,12 @@ using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition
 {
-	public class PendingPositionAnalysisService : IMarketPendingPositionAnalysisService
+	public class PendingPositionRSIAnalysisService : IMarketPendingPositionAnalysisService
 	{
 		private readonly IRepository<Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 
-		public PendingPositionAnalysisService(IRepository<Candle> candleRepository,
+		public PendingPositionRSIAnalysisService(IRepository<Candle> candleRepository,
 			IMarketDataConnector marketDataConnector)
 		{
 			_candleRepository = candleRepository;
@@ -39,7 +39,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				throw new NoNullAllowedException("No candles loaded");
 
 			var currentCandle = targetPeriodLastCandles.FirstOrDefault(candle => candle.Moment == settings.Moment);
-			if (currentCandle != null && currentCandle.MaxPrice < activeOrderPair.InitialOrder.Price)
+			if (currentCandle != null && currentCandle.MaxPrice < activeOrderPair.OpenPositionOrder.Price)
 				return new CancelOrderInfo();
 
 			//TODO: Try to implement checking on low period based on RSI - open order if RSI signals on low period too

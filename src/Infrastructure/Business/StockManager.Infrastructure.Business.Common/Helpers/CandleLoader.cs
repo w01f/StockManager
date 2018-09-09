@@ -11,7 +11,7 @@ namespace StockManager.Infrastructure.Business.Common.Helpers
 {
 	public static class CandleLoader
 	{
-		public static async Task<IEnumerable<Candle>> Load(string currencyPairId,
+		public static async Task<IList<Candle>> Load(string currencyPairId,
 			CandlePeriod period,
 			int limit,
 			DateTime currentMoment,

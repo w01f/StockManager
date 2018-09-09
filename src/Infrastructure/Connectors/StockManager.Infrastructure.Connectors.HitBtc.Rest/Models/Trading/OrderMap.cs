@@ -72,6 +72,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					throw new ConnectorException("Undefined order state type", null);
 			}
 
+			target.TimeInForce = "IOC";
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;
 			target.StopPrice = source.StopPrice ?? 0;

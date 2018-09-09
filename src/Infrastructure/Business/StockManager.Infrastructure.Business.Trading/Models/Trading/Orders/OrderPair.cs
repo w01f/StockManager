@@ -7,28 +7,43 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Orders
 {
 	public class OrderPair
 	{
-		public Order InitialOrder { get; set; }
+		public Order OpenPositionOrder { get; set; }
+		public Order ClosePositionOrder { get; set; }
 		public Order StopLossOrder { get; set; }
 
-		public bool IsPendingPosition => (InitialOrder.OrderStateType == OrderStateType.New || InitialOrder.OrderStateType == OrderStateType.PartiallyFilled) &&
-										 StopLossOrder.OrderStateType == OrderStateType.New;
+		public bool IsPendingPosition => OpenPositionOrder.OrderStateType == OrderStateType.New ||
+											OpenPositionOrder.OrderStateType == OrderStateType.Suspended;
 
-		public bool IsOpenPosition => InitialOrder.OrderStateType == OrderStateType.Filled &&
-										 (StopLossOrder.OrderStateType == OrderStateType.New || StopLossOrder.OrderStateType == OrderStateType.PartiallyFilled);
+		public bool IsOpenPosition => OpenPositionOrder.OrderStateType == OrderStateType.Filled;
 
 		public void ApplyOrderChanges(UpdateOrderInfo marketInfo)
 		{
-			InitialOrder.Price = marketInfo.Price;
-			InitialOrder.StopPrice = marketInfo.StopPrice;
+			OpenPositionOrder.Price = marketInfo.OpenPrice;
+			if (OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
+				OpenPositionOrder.StopPrice = marketInfo.OpenStopPrice;
+			else
+				OpenPositionOrder.StopPrice = null;
+
+			ClosePositionOrder.Price = marketInfo.ClosePrice;
+			if (ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+				ClosePositionOrder.StopPrice = marketInfo.CloseStopPrice;
+			else
+				ClosePositionOrder.StopPrice = null;
 
 			StopLossOrder.Price = marketInfo.StopLossPrice;
-			StopLossOrder.StopPrice = marketInfo.StopLossStopPrice;
+			StopLossOrder.StopPrice = marketInfo.StopLossPrice;
 		}
 
-		public void ApplyOrderChanges(UpdateStopLossInfo marketInfo)
+		public void ApplyOrderChanges(UpdateClosePositionInfo marketInfo)
 		{
-			StopLossOrder.Price = marketInfo.Price;
-			StopLossOrder.StopPrice = marketInfo.StopPrice;
+			ClosePositionOrder.Price = marketInfo.ClosePrice;
+			if (ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+				ClosePositionOrder.StopPrice = marketInfo.CloseStopPrice;
+			else
+				ClosePositionOrder.StopPrice = null;
+
+			StopLossOrder.Price = marketInfo.StopLossPrice;
+			StopLossOrder.StopPrice = marketInfo.StopLossPrice;
 		}
 	}
 }

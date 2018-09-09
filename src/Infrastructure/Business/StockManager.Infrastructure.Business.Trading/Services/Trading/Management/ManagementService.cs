@@ -50,7 +50,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 						var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(settings, activeOrderPair);
 						if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
 						{
-							activeOrderPair.ApplyOrderChanges((UpdateStopLossInfo)marketInfo);
+							activeOrderPair.ApplyOrderChanges((UpdateClosePositionInfo)marketInfo);
 							await _orderService.UpdateOrder(activeOrderPair, settings);
 						}
 					}

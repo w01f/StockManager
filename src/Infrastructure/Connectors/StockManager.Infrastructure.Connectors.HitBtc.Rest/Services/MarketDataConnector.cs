@@ -26,6 +26,11 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			return currencyPairs;
 		}
 
+		public async Task<Infrastructure.Common.Models.Market.CurrencyPair> GetCurrensyPair(string id)
+		{
+			throw new NotImplementedException();
+		}
+
 		public async Task<IList<Infrastructure.Common.Models.Market.Candle>> GetCandles(String currencyPairId, CandlePeriod period, int limit)
 		{
 			var connection = new ApiConnection();

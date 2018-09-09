@@ -13,7 +13,6 @@ namespace StockManager.Dashboard.Models.Chart
 		public string IndicatorValue { get; set; }
 		public ViewType ViewType { get; set; }
 
-
 		public static IList<IndicatorSeriesViewSettings> GetIndicatorSeriesViewSettings(ChartSettings chartSettings)
 		{
 			var viewSettings = new List<IndicatorSeriesViewSettings>();
@@ -124,6 +123,18 @@ namespace StockManager.Dashboard.Models.Chart
 						viewSettings.Add(new IndicatorSeriesViewSettings
 						{
 							IndicatorType = IndicatorType.AccumulationDistribution,
+							CandlePeriod = indicatorSetting.CandlePeriod,
+							IndicatorValue = String.Format("{0}_{1}_{2}",
+								indicatorSetting.Type.ToString(),
+								indicatorSetting.CandlePeriod.ToString(),
+								((CommonIndicatorSettings)indicatorSetting).Period),
+							ViewType = ViewType.Line
+						});
+						break;
+					case IndicatorType.WilliamsR:
+						viewSettings.Add(new IndicatorSeriesViewSettings
+						{
+							IndicatorType = IndicatorType.WilliamsR,
 							CandlePeriod = indicatorSetting.CandlePeriod,
 							IndicatorValue = String.Format("{0}_{1}_{2}",
 								indicatorSetting.Type.ToString(),

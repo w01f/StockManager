@@ -94,6 +94,11 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 							candles,
 							((CommonIndicatorSettings)indicatorSettings).Period);
 						break;
+					case IndicatorType.WilliamsR:
+						indicatorDataset.Values = _indicatorComputingService.ComputeWilliamsR(
+							candles,
+							((CommonIndicatorSettings)indicatorSettings).Period);
+						break;
 					default:
 						throw new AnalysisException("Undefined indicator type");
 				}
@@ -112,19 +117,19 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 			{
 				var tradingSettings = new TradingSettings().InitializeFromTemplate(defaultTradindSettings);
 				tradingSettings.Moment = candle.Moment;
-				var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tradingSettings);
+				//var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tradingSettings);
 
 				var tradingData = new TradingData
 				{
 					Moment = candle.Moment
 				};
 
-				switch (newPositionInfo.PositionType)
-				{
-					case NewMarketPositionType.Buy:
-						tradingData.BuyPrice = candle.ClosePrice;
-						break;
-				}
+				//switch (newPositionInfo.PositionType)
+				//{
+				//	case NewMarketPositionType.Buy:
+				//		tradingData.BuyPrice = candle.ClosePrice;
+				//		break;
+				//}
 				chartDataset.TradingData.Add(tradingData);
 			}
 

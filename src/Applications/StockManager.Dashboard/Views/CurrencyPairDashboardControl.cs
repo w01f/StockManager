@@ -12,7 +12,7 @@ using StockManager.Domain.Core.Common.Enums;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Trading.Helpers;
-using StockManager.Infrastructure.Connectors.Common.Models;
+using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Dashboard.Views
 {
@@ -43,7 +43,7 @@ namespace StockManager.Dashboard.Views
 
 				var chartSettings = new ChartSettings();
 				chartSettings.CurrencyPairId = Info.Id;
-				chartSettings.Period = CandlePeriod.Minute5;
+				chartSettings.Period = CandlePeriod.Minute1;
 				chartSettings.CurrentMoment = new DateTime(2018, 03, 20, 19, 55, 0);
 
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 19, 2, 0, 0); // 1
@@ -61,14 +61,17 @@ namespace StockManager.Dashboard.Views
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 14, 0, 0); // 13
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 21, 0, 0); // 14
 				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 5, 0, 0); // 15
-				chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
+				//chartSettings.CurrentMoment = new DateTime(2018, 03, 23, 12, 0, 0); // 16
+
+				chartSettings.CurrentMoment = new DateTime(2018, 03, 22, 17, 30, 0); // 16
+
 
 				//TODO Make it optional
 				chartSettings.Indicators.AddRange(new IndicatorSettings[]{
 					new MACDSettings { CandlePeriod =chartSettings.Period.GetHigherFramePeriod(),  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
 					new MACDSettings { CandlePeriod =chartSettings.Period,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
 					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.RelativeStrengthIndex, Period = 14},
-					//new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.AccumulationDistribution}
+					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.WilliamsR,Period = 5}
 				});
 
 				ConfigureIndicatorCharts(chartSettings);
@@ -153,6 +156,12 @@ namespace StockManager.Dashboard.Views
 								.FirstOrDefault());
 							break;
 						case IndicatorType.AccumulationDistribution:
+							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
+								.Where(value => value.Moment == candle.Moment)
+								.Select(value => value.Value)
+								.FirstOrDefault());
+							break;
+						case IndicatorType.WilliamsR:
 							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
 								.Where(value => value.Moment == candle.Moment)
 								.Select(value => value.Value)

@@ -43,95 +43,144 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		{
 			var currencyPair = await _marketDataConnector.GetCurrensyPair(settings.CurrencyPairId);
 
-			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
+			var storedOrders = _orderRepository.GetAll()
 				.Where(entity => String.Equals(entity.CurrencyPair, currencyPair.Id, StringComparison.OrdinalIgnoreCase))
-				.ToList())
-				.Single();
+				.ToList();
 
-			var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
+			if (!storedOrders.Any())
+				return;
 
-			//TODO Check if new stop limit orders are active too
+			var storedOrderEntity = GenerateOrderPairs(storedOrders).Single();
+
 			//TODO Check if filled orders are active too
-			foreach (var initialOrder in activeOrders.Where(order => order.OrderSide == settings.BaseOrderSide).ToList())
+			//TODO Check if stop order will cancel after closePosition order will filled
+			var openPositionOrder = storedOrderEntity.Item1.ToModel(currencyPair);
+			if (openPositionOrder.OrderStateType != OrderStateType.Filled)
 			{
-				if (storedOrderEntity.Item1.ClientId != initialOrder.ClientId)
-					throw new BusinessException("Undefined active order found");
+				var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
 
-				switch (initialOrder.OrderStateType)
+				if (activeOrders.Any(order => order.ClientId != storedOrderEntity.Item1.ClientId &&
+											  order.ClientId != storedOrderEntity.Item2.ClientId &&
+											  order.ClientId != storedOrderEntity.Item3.ClientId))
+					throw new BusinessException("Undefined orders found");
+
+				openPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
+									await _tradingDataConnector.GetOrder(storedOrderEntity.Item1.ClientId);
+				if (openPositionOrder == null)
+					throw new BusinessException("Open position order not found");
+
+				if (openPositionOrder.OrderStateType == OrderStateType.Filled)
 				{
-					case OrderStateType.New:
-					case OrderStateType.PartiallyFilled:
-						continue;
-					default:
-						throw new BusinessException("Unexpected order state found");
+					_orderRepository.Update(openPositionOrder.ToEntity(storedOrderEntity.Item1));
+					_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Fill));
 				}
-			}
-
-			{
-				var initialOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId);
-				if (initialOrder == null)
+				else
 				{
-					initialOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item1.ClientId);
-					if (initialOrder == null)
-						throw new BusinessException("Initial order not found");
-
-					if (initialOrder.OrderStateType != OrderStateType.Filled)
-						throw new BusinessException("Unexpected order state found");
-
-					var pairingOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item2.ClientId);
-					if (pairingOrder != null)
+					switch (openPositionOrder.OrderStateType)
 					{
-						if (pairingOrder.OrderStateType != OrderStateType.Filled)
+						case OrderStateType.Suspended:
+						case OrderStateType.New:
+							if (storedOrderEntity.Item1.OrderStateType != openPositionOrder.OrderStateType)
+							{
+								_orderRepository.Update(openPositionOrder.ToEntity(storedOrderEntity.Item1));
+								_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Update));
+							}
+							break;
+						default:
 							throw new BusinessException("Unexpected order state found");
-
-						_loggingService.LogAction(pairingOrder.ToLogAction(OrderActionType.Fill));
-
-						_orderHistoryRepository.Insert(initialOrder.ToHistory());
-						_orderHistoryRepository.Insert(pairingOrder.ToHistory());
-
-						_orderRepository.Delete(storedOrderEntity.Item1);
-						_orderRepository.Delete(storedOrderEntity.Item2);
-						_orderRepository.SaveChanges();
-
-						_loggingService.LogAction(initialOrder.ToLogAction(OrderActionType.History));
-						_loggingService.LogAction(pairingOrder.ToLogAction(OrderActionType.History));
-					}
-					else
-					{
-						_orderRepository.Update(initialOrder.ToEntity(storedOrderEntity.Item1));
-						_loggingService.LogAction(initialOrder.ToLogAction(OrderActionType.Fill));
-
-						pairingOrder = storedOrderEntity.Item2.ToModel(currencyPair);
-
-						var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-							.FirstOrDefault(ballance =>
-								String.Equals(ballance.CurrencyId, currencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
-
-						if (tradingBallnce == null)
-							throw new BusinessException("Trading balance is not available");
-
-						pairingOrder.CalculateOrderAmount(tradingBallnce, settings);
-
-						pairingOrder = await _tradingDataConnector.CreateOrder(pairingOrder);
-
-						_orderRepository.Update(pairingOrder.ToEntity(storedOrderEntity.Item2));
-						_loggingService.LogAction(pairingOrder.ToLogAction(OrderActionType.Update));
 					}
 				}
 			}
 
-			foreach (var pairingOrder in activeOrders.Where(order => order.OrderSide != settings.BaseOrderSide).ToList())
+			if (openPositionOrder.OrderStateType == OrderStateType.Filled)
 			{
-				if (storedOrderEntity.Item2.ClientId != pairingOrder.ClientId)
-					throw new BusinessException("Undefined active order found");
+				var closePositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item2.ClientId);
+				var stopLossOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item3.ClientId);
 
-				switch (pairingOrder.OrderStateType)
+				if (closePositionOrder == null)
 				{
-					case OrderStateType.New:
-					case OrderStateType.PartiallyFilled:
-						continue;
-					default:
+					if (stopLossOrder != null)
 						throw new BusinessException("Unexpected order state found");
+
+					closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
+					stopLossOrder = storedOrderEntity.Item3.ToModel(currencyPair);
+
+					var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
+						.FirstOrDefault(ballance =>
+							String.Equals(ballance.CurrencyId, currencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
+
+					if (tradingBallnce == null)
+						throw new BusinessException("Trading balance is not available");
+
+					closePositionOrder.CalculateOrderAmount(tradingBallnce, settings);
+					stopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
+
+					closePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder);
+					stopLossOrder = await _tradingDataConnector.CreateOrder(stopLossOrder);
+
+					_orderRepository.Update(closePositionOrder.ToEntity(storedOrderEntity.Item2));
+					_orderRepository.Update(stopLossOrder.ToEntity(storedOrderEntity.Item3));
+					_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Update));
+					_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Update));
+				}
+				else
+				{
+					if (stopLossOrder == null)
+						throw new BusinessException("Unexpected order state found");
+
+					switch (closePositionOrder.OrderStateType)
+					{
+						case OrderStateType.Suspended:
+						case OrderStateType.New:
+							if (storedOrderEntity.Item2.OrderStateType != closePositionOrder.OrderStateType)
+							{
+								_orderRepository.Update(closePositionOrder.ToEntity(storedOrderEntity.Item2));
+								_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Update));
+							}
+							break;
+						case OrderStateType.Filled:
+							if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
+								throw new BusinessException("Unexpected order state found");
+
+							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Fill));
+							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Cancel));
+
+							_orderHistoryRepository.Insert(openPositionOrder.ToHistory());
+							_orderHistoryRepository.Insert(closePositionOrder.ToHistory());
+							_orderHistoryRepository.Insert(stopLossOrder.ToHistory());
+
+							_orderRepository.Delete(storedOrderEntity.Item1);
+							_orderRepository.Delete(storedOrderEntity.Item2);
+							_orderRepository.Delete(storedOrderEntity.Item3);
+							_orderRepository.SaveChanges();
+
+							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.History));
+							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.History));
+							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.History));
+							break;
+						case OrderStateType.Cancelled:
+							if (stopLossOrder.OrderStateType != OrderStateType.Filled)
+								throw new BusinessException("Unexpected order state found");
+
+							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Cancel));
+							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Fill));
+
+							_orderHistoryRepository.Insert(openPositionOrder.ToHistory());
+							_orderHistoryRepository.Insert(closePositionOrder.ToHistory());
+							_orderHistoryRepository.Insert(stopLossOrder.ToHistory());
+
+							_orderRepository.Delete(storedOrderEntity.Item1);
+							_orderRepository.Delete(storedOrderEntity.Item2);
+							_orderRepository.Delete(storedOrderEntity.Item3);
+							_orderRepository.SaveChanges();
+
+							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.History));
+							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.History));
+							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.History));
+							break;
+						default:
+							throw new BusinessException("Unexpected order state found");
+					}
 				}
 			}
 		}
@@ -143,7 +192,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				.Where(entity => String.Equals(entity.CurrencyPair, currencyPairId, StringComparison.OrdinalIgnoreCase))
 				.ToList())
 				.Single();
-
 			return storedOrderPair.ToModel(currencyPair);
 		}
 
@@ -151,25 +199,34 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		{
 			var currencyPair = await _marketDataConnector.GetCurrensyPair(settings.CurrencyPairId);
 
-			//TODO Separate price from stop price
-			var initialOrder = new Infrastructure.Common.Models.Trading.Order();
-			initialOrder.ClientId = Guid.NewGuid();
-			initialOrder.CurrencyPair = currencyPair;
-			initialOrder.OrderSide = settings.BaseOrderSide;
-			initialOrder.OrderType = OrderType.StopLimit;
-			initialOrder.OrderStateType = OrderStateType.New;
-			initialOrder.Price = positionInfo.Price;
-			initialOrder.StopPrice = positionInfo.StopPrice;
+			var openPositionOrder = new Infrastructure.Common.Models.Trading.Order();
+			openPositionOrder.ClientId = Guid.NewGuid();
+			openPositionOrder.CurrencyPair = currencyPair;
+			openPositionOrder.OrderSide = settings.BaseOrderSide;
+			openPositionOrder.OrderType = OrderType.StopLimit;
+			openPositionOrder.OrderStateType = OrderStateType.Suspended;
+			openPositionOrder.Price = positionInfo.OpenPrice;
+			openPositionOrder.StopPrice = positionInfo.OpenStopPrice;
 
-			var pairingOrder = new Infrastructure.Common.Models.Trading.Order();
-			initialOrder.ClientId = Guid.NewGuid();
-			initialOrder.ParentClientId = initialOrder.ClientId;
-			initialOrder.CurrencyPair = currencyPair;
-			initialOrder.OrderSide = settings.OppositeOrderSide;
-			initialOrder.OrderType = OrderType.StopLimit;
-			initialOrder.OrderStateType = OrderStateType.New;
-			initialOrder.Price = positionInfo.StopLossPrice;
-			initialOrder.StopPrice = positionInfo.StopLossStopPrice;
+			var closePositionOrder = new Infrastructure.Common.Models.Trading.Order();
+			closePositionOrder.ClientId = Guid.NewGuid();
+			closePositionOrder.ParentClientId = openPositionOrder.ClientId;
+			closePositionOrder.CurrencyPair = currencyPair;
+			closePositionOrder.OrderSide = settings.OppositeOrderSide;
+			closePositionOrder.OrderType = OrderType.StopLimit;
+			closePositionOrder.OrderStateType = OrderStateType.Suspended;
+			closePositionOrder.Price = positionInfo.ClosePrice;
+			closePositionOrder.StopPrice = positionInfo.CloseStopPrice;
+
+			var stopLossOrder = new Infrastructure.Common.Models.Trading.Order();
+			stopLossOrder.ClientId = Guid.NewGuid();
+			stopLossOrder.ParentClientId = openPositionOrder.ClientId;
+			stopLossOrder.CurrencyPair = currencyPair;
+			stopLossOrder.OrderSide = settings.OppositeOrderSide;
+			stopLossOrder.OrderType = OrderType.StopMarket;
+			stopLossOrder.OrderStateType = OrderStateType.Suspended;
+			stopLossOrder.Price = positionInfo.StopLossPrice;
+			stopLossOrder.StopPrice = positionInfo.StopLossPrice;
 
 			var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
 				.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, currencyPair.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase));
@@ -177,114 +234,136 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			if (tradingBallnce == null)
 				throw new BusinessException("Trading balance is not available");
 
-			initialOrder.CalculateOrderAmount(tradingBallnce, settings);
+			openPositionOrder.CalculateOrderAmount(tradingBallnce, settings);
 
-			initialOrder = await _tradingDataConnector.CreateOrder(initialOrder);
+			openPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder);
 
-			_orderRepository.Insert(initialOrder.ToEntity());
-			_orderRepository.Insert(pairingOrder.ToEntity());
+			_orderRepository.Insert(openPositionOrder.ToEntity());
+			_orderRepository.Insert(closePositionOrder.ToEntity());
+			_orderRepository.Insert(stopLossOrder.ToEntity());
 
-			_loggingService.LogAction(initialOrder.ToLogAction(OrderActionType.Create));
-			_loggingService.LogAction(pairingOrder.ToLogAction(OrderActionType.Create));
+			_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Create));
+			_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Create));
+			_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Create));
 		}
 
 		public async Task UpdateOrder(OrderPair orderPair, TradingSettings settings)
 		{
 			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
-					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.InitialOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
+					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
 					.ToList())
 				.Single();
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				var initialOrder = await _tradingDataConnector.CancelOrder(orderPair.InitialOrder);
-				if (initialOrder.OrderStateType != OrderStateType.Cancelled)
+				var openPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+				if (openPositionOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed");
 
-				orderPair.InitialOrder.ClientId = Guid.NewGuid();
-				orderPair.StopLossOrder.ParentClientId = orderPair.InitialOrder.ClientId;
+				orderPair.OpenPositionOrder.ClientId = Guid.NewGuid();
+				orderPair.ClosePositionOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
+				orderPair.StopLossOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
 
 				var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.InitialOrder.CurrencyPair.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase));
+					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase));
 
 				if (tradingBallnce == null)
 					throw new BusinessException("Trading balance is not available");
 
-				orderPair.InitialOrder.CalculateOrderAmount(tradingBallnce, settings);
+				orderPair.OpenPositionOrder.CalculateOrderAmount(tradingBallnce, settings);
 
-				orderPair.InitialOrder = await _tradingDataConnector.CreateOrder(orderPair.InitialOrder);
+				orderPair.OpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder);
 
-				_orderRepository.Update(orderPair.InitialOrder.ToEntity(storedOrderEntity.Item1));
-				_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item2));
+				_orderRepository.Update(orderPair.OpenPositionOrder.ToEntity(storedOrderEntity.Item1));
+				_orderRepository.Update(orderPair.ClosePositionOrder.ToEntity(storedOrderEntity.Item2));
+				_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item3));
 
-				_loggingService.LogAction(orderPair.InitialOrder.ToLogAction(OrderActionType.Update));
-				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Update));
-			}
-			else if (storedOrderEntity.Item2.OrderStateType != OrderStateType.Filled)
-			{
-				var pairingOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
-				if (pairingOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
-
-				orderPair.StopLossOrder.ClientId = Guid.NewGuid();
-
-				var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.StopLossOrder.CurrencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
-
-				if (tradingBallnce == null)
-					throw new BusinessException("Trading balance is not available");
-
-				orderPair.StopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
-
-				orderPair.StopLossOrder = await _tradingDataConnector.CreateOrder(orderPair.StopLossOrder);
-
-				_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item2));
+				_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.Update));
+				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Update));
 				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Update));
 			}
 			else
-				throw new BusinessException("Unexpected order pair state found");
+			{
+				var closePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				if (closePositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed");
+
+				var stopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+				if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed");
+
+				orderPair.ClosePositionOrder.ClientId = Guid.NewGuid();
+				orderPair.StopLossOrder.ClientId = Guid.NewGuid();
+
+				var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
+					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.ClosePositionOrder.CurrencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
+
+				if (tradingBallnce == null)
+					throw new BusinessException("Trading balance is not available");
+
+				orderPair.ClosePositionOrder.CalculateOrderAmount(tradingBallnce, settings);
+				orderPair.StopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
+
+				orderPair.ClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder);
+				orderPair.StopLossOrder = await _tradingDataConnector.CreateOrder(orderPair.StopLossOrder);
+
+				_orderRepository.Update(orderPair.ClosePositionOrder.ToEntity(storedOrderEntity.Item2));
+				_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item3));
+				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Update));
+				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Update));
+			}
 		}
 
 		public async Task CancelOrder(OrderPair orderPair)
 		{
 			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
-					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.InitialOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
+					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
 					.ToList())
 				.Single();
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				orderPair.InitialOrder = await _tradingDataConnector.CancelOrder(orderPair.InitialOrder);
-				if (orderPair.InitialOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
-			}
-			else if (storedOrderEntity.Item2.OrderStateType != OrderStateType.Filled)
-			{
-				orderPair.StopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
-				if (orderPair.StopLossOrder.OrderStateType != OrderStateType.Cancelled)
+				orderPair.OpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+				if (orderPair.OpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed");
 			}
 			else
-				throw new BusinessException("Unexpected order pair state found");
+			{
+				orderPair.ClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				if (orderPair.ClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed");
 
-			_orderHistoryRepository.Insert(orderPair.InitialOrder.ToHistory());
+				var stopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+				if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed");
+			}
+
+			_orderHistoryRepository.Insert(orderPair.OpenPositionOrder.ToHistory());
+			_orderHistoryRepository.Insert(orderPair.ClosePositionOrder.ToHistory());
 			_orderHistoryRepository.Insert(orderPair.StopLossOrder.ToHistory());
 
 			_orderRepository.Delete(storedOrderEntity.Item1);
 			_orderRepository.Delete(storedOrderEntity.Item2);
+			_orderRepository.Delete(storedOrderEntity.Item3);
 			_orderRepository.SaveChanges();
 
-			_loggingService.LogAction(orderPair.InitialOrder.ToLogAction(OrderActionType.Cancel));
+			_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.Cancel));
+			_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Cancel));
 			_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Cancel));
 
-			_loggingService.LogAction(orderPair.InitialOrder.ToLogAction(OrderActionType.History));
+			_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.History));
+			_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.History));
 			_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.History));
 		}
 
-		private IList<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>> GenerateOrderPairs(IList<Domain.Core.Entities.Trading.Order> orderEntities)
+		private IList<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>> GenerateOrderPairs(IList<Domain.Core.Entities.Trading.Order> orderEntities)
 		{
-			var result = new List<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>>();
-			foreach (var initialOrderEntity in orderEntities.Where(entity => entity.ClientId == Guid.Empty).ToList())
-				result.Add(new Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>(initialOrderEntity, orderEntities.Single(entity => entity.ParentClientId == initialOrderEntity.ClientId)));
+			var result = new List<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>>();
+			foreach (var openPositionOrderEntity in orderEntities.Where(entity => entity.ClientId == Guid.Empty).ToList())
+				result.Add(
+					new Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>(
+						openPositionOrderEntity,
+						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.OrderType == OrderType.Limit),
+						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.OrderType == OrderType.StopMarket)));
 			return result;
 		}
 	}

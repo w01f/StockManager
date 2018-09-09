@@ -52,6 +52,13 @@ namespace StockManager.Dashboard.Models.Chart
 						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.AccumulationDistribution, period),
 					}
 				},
+				new IndicatorPanelSettings
+				{
+					AssignedIndicators = new[]
+					{
+						new Tuple<IndicatorType, CandlePeriod>(IndicatorType.WilliamsR, period),
+					}
+				},
 			};
 		}
 	}

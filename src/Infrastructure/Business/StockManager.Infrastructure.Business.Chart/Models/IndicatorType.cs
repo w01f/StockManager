@@ -7,5 +7,6 @@
 		Stochastic,
 		RelativeStrengthIndex,
 		AccumulationDistribution,
+		WilliamsR,
 	}
 }

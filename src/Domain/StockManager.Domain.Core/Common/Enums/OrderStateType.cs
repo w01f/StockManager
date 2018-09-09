@@ -2,8 +2,8 @@
 {
 	public enum OrderStateType
 	{
-		New,
 		Suspended,
+		New,
 		PartiallyFilled,
 		Filled,
 		Cancelled,

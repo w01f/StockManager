@@ -30,7 +30,7 @@ namespace StockManager.TradingBot
 				.To<TradyIndicatorComputingService>();
 
 			Bind<IMarketNewPositionAnalysisService>()
-				.To<TripleFrameStrategyAnalysisService>();
+				.To<TripleFrameRSIStrategyAnalysisService>();
 			Bind<ProductionManagemntService>()
 				.ToSelf();
 		}

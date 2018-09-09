@@ -10,6 +10,8 @@ namespace StockManager.Infrastructure.Analysis.Common.Services
 		IList<BaseIndicatorValue> ComputeEMA(IList<Candle> candles, int period);
 		IList<BaseIndicatorValue> ComputeStochastic(IList<Candle> candles, int basePeriod, int smaPeriodK, int smaPeriodD);
 		IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, int period);
+		IList<BaseIndicatorValue> ComputeWilliamsR(IList<Candle> candles, int period);
 		IList<BaseIndicatorValue> ComputeAccumulationDistribution(IList<Candle> candles, int period);
+		IList<BaseIndicatorValue> ComputeParabolicSAR(IList<Candle> candles, int period);
 	}
 }

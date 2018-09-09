@@ -70,6 +70,30 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 			return outputValues;
 		}
 
+		public IList<BaseIndicatorValue> ComputeWilliamsR(IList<Candle> candles, int period)
+		{
+			var outputValues = new List<BaseIndicatorValue>();
+
+			for (var i = 0; i < candles.Count; i++)
+			{
+				if (i < period)
+					outputValues.Add(new SimpleIndicatorValue(candles[i].Moment));
+				else
+				{
+					var valuableCandles = candles.Skip(i + 1 - period).Take(period).ToList();
+					var maxPrice = valuableCandles.Max(candle => candle.MaxPrice);
+					var minPrice = valuableCandles.Min(candle => candle.MinPrice);
+
+					outputValues.Add(new SimpleIndicatorValue(candles[i].Moment)
+					{
+						Value = 100 * ((maxPrice - candles[i].ClosePrice) / (maxPrice - minPrice))
+					});
+				}
+			}
+
+			return outputValues;
+		}
+
 		public IList<BaseIndicatorValue> ComputeAccumulationDistribution(IList<Candle> candles, Int32 period)
 		{
 			var indicator = new AccumulationDistributionLine(candles.Select(candle => candle.ToInnerModel()));
@@ -82,6 +106,11 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 				.Select(value => value.ToOuterModel()));
 
 			return outputValues;
+		}
+
+		public IList<BaseIndicatorValue> ComputeParabolicSAR(IList<Candle> candles, Int32 period)
+		{
+			throw new NotImplementedException();
 		}
 	}
 }

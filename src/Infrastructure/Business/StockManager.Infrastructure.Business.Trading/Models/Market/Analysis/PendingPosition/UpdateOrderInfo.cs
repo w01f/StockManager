@@ -4,11 +4,13 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Pe
 {
 	public class UpdateOrderInfo : PendingPositionInfo
 	{
-		public decimal Price { get; set; }
-		public decimal StopPrice { get; set; }
+		public decimal OpenPrice { get; set; }
+		public decimal OpenStopPrice { get; set; }
+
+		public decimal ClosePrice { get; set; }
+		public decimal CloseStopPrice { get; set; }
 
 		public decimal StopLossPrice { get; set; }
-		public decimal StopLossStopPrice { get; set; }
 
 		public UpdateOrderInfo() : base(PendingMarketPositionType.UpdateOrder) { }
 	}

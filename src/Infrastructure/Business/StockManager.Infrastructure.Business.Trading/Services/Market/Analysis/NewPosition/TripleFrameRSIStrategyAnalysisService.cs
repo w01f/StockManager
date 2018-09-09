@@ -10,20 +10,55 @@ using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Common.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
+using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition
 {
-	public class TripleFrameStrategyAnalysisService : BaseBuyPositionAnalysisService
+	public class TripleFrameRSIStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
-		public TripleFrameStrategyAnalysisService(IRepository<Candle> candleRepository,
+		public TripleFrameRSIStrategyAnalysisService(IRepository<Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService)
 		{
 			CandleRepository = candleRepository;
 			MarketDataConnector = marketDataConnector;
 			IndicatorComputingService = indicatorComputingService;
+		}
+
+		public async Task<NewPositionInfo> ProcessMarketPosition(TradingSettings settings)
+		{
+			NewPositionInfo newPositionInfo;
+			var conditionCheckingResult = await CheckConditions(settings);
+
+			switch (conditionCheckingResult.ResultType)
+			{
+				case ConditionCheckingResultType.Passed:
+					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
+
+					var candles = (await CandleLoader.Load(
+						settings.CurrencyPairId,
+						settings.Period,
+						2,
+						settings.Moment,
+						CandleRepository,
+						MarketDataConnector)).ToList();
+
+					//TODO Define stop prices
+					buyPositionInfo.OpenPrice = candles.Max(candle => candle.MaxPrice);
+					buyPositionInfo.OpenStopPrice = candles.Max(candle => candle.MaxPrice);
+
+					buyPositionInfo.ClosePrice = candles.Min(candle => candle.MinPrice);
+
+					newPositionInfo = buyPositionInfo;
+					break;
+				default:
+					newPositionInfo = new WaitPositionInfo();
+					break;
+			}
+
+			return newPositionInfo;
 		}
 
 		//TODO Try to extract logical steps into separate objects
