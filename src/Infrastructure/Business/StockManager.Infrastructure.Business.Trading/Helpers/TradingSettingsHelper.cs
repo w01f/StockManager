@@ -1,4 +1,4 @@
-﻿using StockManager.Domain.Core.Common.Enums;
+﻿using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 
 namespace StockManager.Infrastructure.Business.Trading.Helpers

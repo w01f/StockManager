@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using RestSharp;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection;

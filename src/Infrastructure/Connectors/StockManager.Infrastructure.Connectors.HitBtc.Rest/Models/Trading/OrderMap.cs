@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Common;
 
@@ -72,6 +72,8 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					throw new ConnectorException("Undefined order state type", null);
 			}
 
+			//TODO Check how will be processed partially filled order
+			//TODO Probably need to make different TimeInForce setting for buy and sell orders
 			target.TimeInForce = "IOC";
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;

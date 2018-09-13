@@ -1,4 +1,4 @@
-﻿using StockManager.Domain.Core.Common.Enums;
+﻿using StockManager.Domain.Core.Enums;
 
 namespace StockManager.Infrastructure.Utilities.Logging.Models.Errors
 {

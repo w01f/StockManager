@@ -7,7 +7,7 @@ using StockManager.Infrastructure.Analysis.Common.Helpers;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Common.Helpers;
-using StockManager.Infrastructure.Business.Trading.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;

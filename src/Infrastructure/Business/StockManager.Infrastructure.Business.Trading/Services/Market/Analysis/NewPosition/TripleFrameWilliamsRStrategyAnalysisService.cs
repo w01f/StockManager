@@ -6,7 +6,7 @@ using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Common.Helpers;
-using StockManager.Infrastructure.Business.Trading.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
@@ -54,7 +54,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					buyPositionInfo.ClosePrice =
 					buyPositionInfo.CloseStopPrice = candles.Max(candle => candle.MaxPrice);
 
-					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice);
+					buyPositionInfo.StopLossPrice = candles.Skip(candles.Count - 2).Min(candle => candle.MinPrice) - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
 
 					newPositionInfo = buyPositionInfo;
 					break;

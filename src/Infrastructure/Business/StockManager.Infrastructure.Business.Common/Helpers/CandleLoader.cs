@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;

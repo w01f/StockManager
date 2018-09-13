@@ -1,5 +1,5 @@
 ﻿using System.Drawing;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Chart.Models;
 
 namespace StockManager.Dashboard.Models.Chart

@@ -12,6 +12,5 @@ namespace StockManager.Infrastructure.Analysis.Common.Services
 		IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, int period);
 		IList<BaseIndicatorValue> ComputeWilliamsR(IList<Candle> candles, int period);
 		IList<BaseIndicatorValue> ComputeAccumulationDistribution(IList<Candle> candles, int period);
-		IList<BaseIndicatorValue> ComputeParabolicSAR(IList<Candle> candles, int period);
 	}
 }

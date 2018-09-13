@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using StockManager.Infrastructure.Business.Trading.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;

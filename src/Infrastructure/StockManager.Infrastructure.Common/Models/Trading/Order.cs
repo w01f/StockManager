@@ -1,5 +1,5 @@
 ﻿using System;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Common.Models.Trading

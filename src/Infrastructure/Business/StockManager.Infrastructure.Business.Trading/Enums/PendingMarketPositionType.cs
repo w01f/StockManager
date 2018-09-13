@@ -1,4 +1,4 @@
-﻿namespace StockManager.Infrastructure.Business.Trading.Common.Enums
+﻿namespace StockManager.Infrastructure.Business.Trading.Enums
 {
 	public enum PendingMarketPositionType
 	{

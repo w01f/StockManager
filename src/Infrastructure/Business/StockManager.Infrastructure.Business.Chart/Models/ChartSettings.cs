@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 
 namespace StockManager.Infrastructure.Business.Chart.Models
 {

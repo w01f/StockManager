@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using DevExpress.XtraCharts;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Chart.Models;
 
 namespace StockManager.Dashboard.Models.Chart

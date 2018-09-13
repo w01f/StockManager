@@ -1,8 +1,8 @@
 ﻿using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Common.Enums;
 using StockManager.Domain.Core.Entities.Market;
+using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
@@ -11,6 +11,7 @@ using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition
@@ -82,9 +83,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					else
 					{
 						stopOpenPrice = 0;
+
+						var nearestBidSupportPrice = await GetNearestBidSupportPrice(settings);
 						openPrice = new[]
 						{
-							currentCandle.MaxPrice,
+							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
 							activeOrderPair.OpenPositionOrder.Price
 						}.Max();
 					}
@@ -147,9 +150,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					else
 					{
 						stopOpenPrice = 0;
+
+						var nearestBidSupportPrice = await GetNearestBidSupportPrice(settings);
 						openPrice = new[]
 						{
-							currentLowPeriodCandle.MaxPrice,
+							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
 							activeOrderPair.OpenPositionOrder.Price
 						}.Max();
 					}
@@ -167,6 +172,30 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				}
 				return new PendingOrderInfo();
 			}
+		}
+
+		private async Task<decimal> GetNearestBidSupportPrice(TradingSettings settings)
+		{
+			var orderBookBidItems = (await _marketDataConnector.GetOrderBook(settings.CurrencyPairId, 20))
+				.Where(item => item.Type == OrderBookItemType.Bid)
+				.ToList();
+
+			if (!orderBookBidItems.Any())
+				throw new NoNullAllowedException("Couldn't load order book");
+
+			var avgBidSize = orderBookBidItems
+				.Average(item => item.Size);
+
+			var topBidPrice = orderBookBidItems
+				.OrderByDescending(item => item.Price)
+				.Select(item => item.Price)
+				.First();
+
+			return orderBookBidItems
+				.Where(item => item.Size > avgBidSize && item.Price < topBidPrice)
+				.OrderByDescending(item => item.Price)
+				.Select(item => item.Price)
+				.First();
 		}
 	}
 }

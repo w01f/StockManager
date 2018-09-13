@@ -1,5 +1,5 @@
 ﻿using System.Linq;
-using StockManager.Infrastructure.Business.Trading.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Enums;
 
 namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Settings
 {

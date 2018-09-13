@@ -1,4 +1,4 @@
-﻿namespace StockManager.Domain.Core.Common.Enums
+﻿namespace StockManager.Domain.Core.Enums
 {
 	public enum OrderType
 	{

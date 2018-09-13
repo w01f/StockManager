@@ -8,7 +8,7 @@ using DevExpress.XtraEditors;
 using Ninject;
 using StockManager.Dashboard.Controllers;
 using StockManager.Dashboard.Models.Chart;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Trading.Helpers;

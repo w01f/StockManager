@@ -1,5 +1,5 @@
 ﻿using System;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 
 namespace StockManager.Infrastructure.Utilities.Logging.Models.Orders

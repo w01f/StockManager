@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
 

@@ -1,4 +1,4 @@
-﻿using StockManager.Domain.Core.Common.Enums;
+﻿using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Common.Models.Trading;

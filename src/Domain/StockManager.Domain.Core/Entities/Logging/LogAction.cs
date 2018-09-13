@@ -1,5 +1,5 @@
 using System;
-using StockManager.Domain.Core.Common.Enums;
+using StockManager.Domain.Core.Enums;
 
 namespace StockManager.Domain.Core.Entities.Logging
 {

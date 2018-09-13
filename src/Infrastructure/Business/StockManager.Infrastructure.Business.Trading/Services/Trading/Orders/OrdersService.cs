@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Common.Enums;
 using StockManager.Domain.Core.Entities.Trading;
+using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
@@ -54,6 +54,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			//TODO Check if filled orders are active too
 			//TODO Check if stop order will cancel after closePosition order will filled
+			//TODO Check if stop limit order still has stop price after it chnaged status form suspended to new
 			var openPositionOrder = storedOrderEntity.Item1.ToModel(currencyPair);
 			if (openPositionOrder.OrderStateType != OrderStateType.Filled)
 			{
