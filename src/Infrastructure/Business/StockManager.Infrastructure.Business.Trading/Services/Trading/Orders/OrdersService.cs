@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using StockManager.Domain.Core.Entities.Trading;
 using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
@@ -52,9 +53,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			var storedOrderEntity = GenerateOrderPairs(storedOrders).Single();
 
-			//TODO Check if filled orders are active too
 			//TODO Check if stop order will cancel after closePosition order will filled
-			//TODO Check if stop limit order still has stop price after it chnaged status form suspended to new
 			var openPositionOrder = storedOrderEntity.Item1.ToModel(currencyPair);
 			if (openPositionOrder.OrderStateType != OrderStateType.Filled)
 			{
@@ -65,10 +64,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 											  order.ClientId != storedOrderEntity.Item3.ClientId))
 					throw new BusinessException("Undefined orders found");
 
-				openPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
-									await _tradingDataConnector.GetOrder(storedOrderEntity.Item1.ClientId);
-				if (openPositionOrder == null)
+				var serverSideOpenPositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item1.ClientId);
+
+				if (serverSideOpenPositionOrder == null)
 					throw new BusinessException("Open position order not found");
+
+				SyncOrderWithServer(openPositionOrder, serverSideOpenPositionOrder);
 
 				if (openPositionOrder.OrderStateType == OrderStateType.Filled)
 				{
@@ -81,6 +82,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					{
 						case OrderStateType.Suspended:
 						case OrderStateType.New:
+						case OrderStateType.PartiallyFilled:
 							if (storedOrderEntity.Item1.OrderStateType != openPositionOrder.OrderStateType)
 							{
 								_orderRepository.Update(openPositionOrder.ToEntity(storedOrderEntity.Item1));
@@ -88,23 +90,26 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							}
 							break;
 						default:
-							throw new BusinessException("Unexpected order state found");
+							throw new BusinessException("Unexpected order state found")
+							{
+								Details = String.Format("Open posituon order: {0}", JsonConvert.SerializeObject(openPositionOrder))
+							};
 					}
 				}
 			}
 
 			if (openPositionOrder.OrderStateType == OrderStateType.Filled)
 			{
-				var closePositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item2.ClientId);
-				var stopLossOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item3.ClientId);
+				var serverSideClosePositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item2.ClientId);
+				var serverSideStopLossOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item3.ClientId);
 
-				if (closePositionOrder == null)
+				var closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
+				var stopLossOrder = storedOrderEntity.Item3.ToModel(currencyPair);
+
+				if (serverSideClosePositionOrder == null)
 				{
-					if (stopLossOrder != null)
+					if (serverSideStopLossOrder != null)
 						throw new BusinessException("Unexpected order state found");
-
-					closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
-					stopLossOrder = storedOrderEntity.Item3.ToModel(currencyPair);
 
 					var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
 						.FirstOrDefault(ballance =>
@@ -116,8 +121,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					closePositionOrder.CalculateOrderAmount(tradingBallnce, settings);
 					stopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
 
-					closePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder);
-					stopLossOrder = await _tradingDataConnector.CreateOrder(stopLossOrder);
+					serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder);
+					SyncOrderWithServer(closePositionOrder, serverSideClosePositionOrder);
+
+					serverSideStopLossOrder = await _tradingDataConnector.CreateOrder(stopLossOrder);
+					SyncOrderWithServer(stopLossOrder, serverSideStopLossOrder);
 
 					_orderRepository.Update(closePositionOrder.ToEntity(storedOrderEntity.Item2));
 					_orderRepository.Update(stopLossOrder.ToEntity(storedOrderEntity.Item3));
@@ -126,13 +134,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				}
 				else
 				{
-					if (stopLossOrder == null)
+					if (serverSideStopLossOrder == null)
 						throw new BusinessException("Unexpected order state found");
+
+					SyncOrderWithServer(closePositionOrder, serverSideClosePositionOrder);
+					SyncOrderWithServer(stopLossOrder, serverSideStopLossOrder);
 
 					switch (closePositionOrder.OrderStateType)
 					{
 						case OrderStateType.Suspended:
 						case OrderStateType.New:
+						case OrderStateType.PartiallyFilled:
 							if (storedOrderEntity.Item2.OrderStateType != closePositionOrder.OrderStateType)
 							{
 								_orderRepository.Update(closePositionOrder.ToEntity(storedOrderEntity.Item2));
@@ -141,7 +153,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							break;
 						case OrderStateType.Filled:
 							if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
-								throw new BusinessException("Unexpected order state found");
+								throw new BusinessException("Unexpected order state found")
+								{
+									Details = String.Format("Stop loss order: {0}", JsonConvert.SerializeObject(stopLossOrder))
+								};
 
 							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Fill));
 							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Cancel));
@@ -161,7 +176,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							break;
 						case OrderStateType.Cancelled:
 							if (stopLossOrder.OrderStateType != OrderStateType.Filled)
-								throw new BusinessException("Unexpected order state found");
+								throw new BusinessException("Unexpected order state found")
+								{
+									Details = String.Format("Stop loss order: {0}", JsonConvert.SerializeObject(stopLossOrder))
+								};
 
 							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Cancel));
 							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Fill));
@@ -180,7 +198,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.History));
 							break;
 						default:
-							throw new BusinessException("Unexpected order state found");
+							throw new BusinessException("Unexpected order state found")
+							{
+								Details = String.Format("Close position order: {0}", JsonConvert.SerializeObject(closePositionOrder))
+							};
 					}
 				}
 			}
@@ -203,9 +224,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			var openPositionOrder = new Infrastructure.Common.Models.Trading.Order();
 			openPositionOrder.ClientId = Guid.NewGuid();
 			openPositionOrder.CurrencyPair = currencyPair;
+			openPositionOrder.Role = OrderRoleType.OpenPosition;
 			openPositionOrder.OrderSide = settings.BaseOrderSide;
 			openPositionOrder.OrderType = OrderType.StopLimit;
 			openPositionOrder.OrderStateType = OrderStateType.Suspended;
+			openPositionOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
 			openPositionOrder.Price = positionInfo.OpenPrice;
 			openPositionOrder.StopPrice = positionInfo.OpenStopPrice;
 
@@ -213,9 +236,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			closePositionOrder.ClientId = Guid.NewGuid();
 			closePositionOrder.ParentClientId = openPositionOrder.ClientId;
 			closePositionOrder.CurrencyPair = currencyPair;
+			openPositionOrder.Role = OrderRoleType.ClosePosition;
 			closePositionOrder.OrderSide = settings.OppositeOrderSide;
 			closePositionOrder.OrderType = OrderType.StopLimit;
-			closePositionOrder.OrderStateType = OrderStateType.Suspended;
+			closePositionOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
 			closePositionOrder.Price = positionInfo.ClosePrice;
 			closePositionOrder.StopPrice = positionInfo.CloseStopPrice;
 
@@ -223,9 +247,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			stopLossOrder.ClientId = Guid.NewGuid();
 			stopLossOrder.ParentClientId = openPositionOrder.ClientId;
 			stopLossOrder.CurrencyPair = currencyPair;
+			openPositionOrder.Role = OrderRoleType.StopLoss;
 			stopLossOrder.OrderSide = settings.OppositeOrderSide;
 			stopLossOrder.OrderType = OrderType.StopMarket;
 			stopLossOrder.OrderStateType = OrderStateType.Suspended;
+			stopLossOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
 			stopLossOrder.Price = positionInfo.StopLossPrice;
 			stopLossOrder.StopPrice = positionInfo.StopLossPrice;
 
@@ -237,7 +263,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			openPositionOrder.CalculateOrderAmount(tradingBallnce, settings);
 
-			openPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder);
+			var serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder);
+			SyncOrderWithServer(openPositionOrder, serverSideOpenPositionOrder);
 
 			_orderRepository.Insert(openPositionOrder.ToEntity());
 			_orderRepository.Insert(closePositionOrder.ToEntity());
@@ -257,9 +284,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				var openPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
-				if (openPositionOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+				if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideOpenPositionOrder))
+					};
 
 				orderPair.OpenPositionOrder.ClientId = Guid.NewGuid();
 				orderPair.ClosePositionOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
@@ -285,13 +315,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			}
 			else
 			{
-				var closePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
-				if (closePositionOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				if (serverSideClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideClosePositionOrder))
+					};
 
-				var stopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
-				if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideStopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+				if (serverSideStopLossOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideStopLossOrder))
+					};
 
 				orderPair.ClosePositionOrder.ClientId = Guid.NewGuid();
 				orderPair.StopLossOrder.ClientId = Guid.NewGuid();
@@ -323,19 +359,32 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				.Single();
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				orderPair.OpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
-				if (orderPair.OpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+				if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideOpenPositionOrder))
+					};
+
+				SyncOrderWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
 			}
 			else
 			{
-				orderPair.ClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
-				if (orderPair.ClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				if (serverSideClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideClosePositionOrder))
+					};
+				SyncOrderWithServer(orderPair.ClosePositionOrder, serverSideClosePositionOrder);
 
-				var stopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
-				if (stopLossOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed");
+				var serverSideStopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+				if (serverSideStopLossOrder.OrderStateType != OrderStateType.Cancelled)
+					throw new BusinessException("Cancelling order failed")
+					{
+						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideStopLossOrder))
+					};
+				SyncOrderWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
 			}
 
 			_orderHistoryRepository.Insert(orderPair.OpenPositionOrder.ToHistory());
@@ -356,15 +405,29 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.History));
 		}
 
+		private void SyncOrderWithServer(
+			Infrastructure.Common.Models.Trading.Order localOrder,
+			Infrastructure.Common.Models.Trading.Order serverOrder)
+		{
+			localOrder.OrderSide = serverOrder.OrderSide;
+			localOrder.OrderType = serverOrder.OrderType;
+			localOrder.OrderStateType = serverOrder.OrderStateType;
+			localOrder.TimeInForce = serverOrder.TimeInForce;
+			localOrder.Price = serverOrder.Price;
+			localOrder.Quantity = serverOrder.Quantity;
+			localOrder.Created = serverOrder.Created;
+			localOrder.Updated = serverOrder.Updated;
+		}
+
 		private IList<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>> GenerateOrderPairs(IList<Domain.Core.Entities.Trading.Order> orderEntities)
 		{
 			var result = new List<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>>();
-			foreach (var openPositionOrderEntity in orderEntities.Where(entity => entity.ClientId == Guid.Empty).ToList())
+			foreach (var openPositionOrderEntity in orderEntities.Where(entity => entity.Role == OrderRoleType.OpenPosition && entity.ClientId == Guid.Empty).ToList())
 				result.Add(
 					new Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>(
 						openPositionOrderEntity,
-						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.OrderType == OrderType.Limit),
-						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.OrderType == OrderType.StopMarket)));
+						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.Role == OrderRoleType.ClosePosition),
+						orderEntities.Single(entity => entity.ParentClientId == openPositionOrderEntity.ClientId && entity.Role == OrderRoleType.StopLoss)));
 			return result;
 		}
 	}

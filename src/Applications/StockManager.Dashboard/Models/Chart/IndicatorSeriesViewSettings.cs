@@ -143,6 +143,15 @@ namespace StockManager.Dashboard.Models.Chart
 							ViewType = ViewType.Line
 						});
 						break;
+					case IndicatorType.ParabolicSAR:
+						viewSettings.Add(new IndicatorSeriesViewSettings
+						{
+							IndicatorType = IndicatorType.ParabolicSAR,
+							CandlePeriod = indicatorSetting.CandlePeriod,
+							IndicatorValue = String.Format("{0}{1}", indicatorSetting.Type.ToString(), ((CommonIndicatorSettings)indicatorSetting).Period),
+							ViewType = ViewType.Point
+						});
+						break;
 				}
 			}
 

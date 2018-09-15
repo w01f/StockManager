@@ -17,7 +17,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new SimpleIndicatorValue(source.DateTime.Value)
+			var target = new SimpleIndicatorValue(source.DateTime.Value.DateTime)
 			{
 				Value = source.Tick,
 			};
@@ -28,7 +28,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new StochasticValue(source.DateTime.Value)
+			var target = new StochasticValue(source.DateTime.Value.DateTime)
 			{
 				K = source.Tick.K,
 				D = source.Tick.D,
@@ -41,7 +41,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Models
 		{
 			if (!source.DateTime.HasValue)
 				throw new AnalysisException("Indicator value should be assigned for the moment");
-			var target = new MACDValue(source.DateTime.Value)
+			var target = new MACDValue(source.DateTime.Value.DateTime)
 			{
 				MACD = source.Tick.MacdLine,
 				Signal = source.Tick.SignalLine,

@@ -8,6 +8,7 @@ using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market;
+using OrderBookItem = StockManager.Infrastructure.Common.Models.Market.OrderBookItem;
 
 namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 {
@@ -84,6 +85,11 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 				.ToList();
 
 			return candles;
+		}
+
+		public async Task<IList<OrderBookItem>> GetOrderBook(String currencyPairId, Int32 limit)
+		{
+			throw new NotImplementedException();
 		}
 	}
 }

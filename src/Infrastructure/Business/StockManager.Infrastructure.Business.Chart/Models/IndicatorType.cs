@@ -8,5 +8,6 @@
 		RelativeStrengthIndex,
 		AccumulationDistribution,
 		WilliamsR,
+		ParabolicSAR,
 	}
 }

@@ -90,13 +90,15 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 						break;
 					case IndicatorType.AccumulationDistribution:
 						indicatorDataset.Values = _indicatorComputingService.ComputeAccumulationDistribution(
-							candles,
-							((CommonIndicatorSettings)indicatorSettings).Period);
+							candles);
 						break;
 					case IndicatorType.WilliamsR:
 						indicatorDataset.Values = _indicatorComputingService.ComputeWilliamsR(
 							candles,
 							((CommonIndicatorSettings)indicatorSettings).Period);
+						break;
+					case IndicatorType.ParabolicSAR:
+						indicatorDataset.Values = _indicatorComputingService.ComputeParabolicSAR(candles);
 						break;
 					default:
 						throw new AnalysisException("Undefined indicator type");

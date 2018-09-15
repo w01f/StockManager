@@ -13,14 +13,13 @@ using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPo
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Common.Enums;
+using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition
 {
 	public class OpenPositionAnalysisService : IMarketOpenPositionAnalysisService
 	{
-		private const int AccelerationFactorMaxPeriod = 10;
-
 		private readonly IRepository<Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
@@ -55,12 +54,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				Period = 5
 			};
 
-			var candleRangeSize = new[] { williamsRSettings.Period, AccelerationFactorMaxPeriod }.Max();
+			var candleRangeSize = new[]
+			{
+				williamsRSettings.Period+1,
+				2
+			}.Max();
 
 			var targetPeriodLastCandles = (await CandleLoader.Load(
 					settings.CurrencyPairId,
 					settings.Period,
-					candleRangeSize + 1,
+					candleRangeSize,
 					settings.Moment,
 					_candleRepository,
 					_marketDataConnector))
@@ -75,7 +78,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			{
 				if (currentCandle != null)
 				{
-					newPositionInfo.StopLossPrice = ComputeParabolicSAR(targetPeriodLastCandles, newPositionInfo.StopLossPrice, settings);
+					ComputeStopLossUsingParabolicSAR(activeOrderPair.StopLossOrder, currentCandle, settings);
 
 					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
 							targetPeriodLastCandles,
@@ -181,37 +184,33 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			return newPositionInfo;
 		}
 
-		private decimal ComputeParabolicSAR(
-			IList<Infrastructure.Common.Models.Market.Candle> targetCandles, 
-			decimal lastSar, 
+		private void ComputeStopLossUsingParabolicSAR(
+			Order stopLossOrder,
+			Infrastructure.Common.Models.Market.Candle currentCandle,
 			TradingSettings settings)
 		{
-			var candlesForComputing = targetCandles
-				.Skip(targetCandles.Count - (AccelerationFactorMaxPeriod + 1))
-				.Reverse()
-				.ToList();
-
-			if (!candlesForComputing.Any())
-				throw new NoNullAllowedException("No candles loaded");
-
-			var currentCandle = candlesForComputing.First();
-
-			var accelerationFactorPeriod = 0;
-
-			for (var i = 0; i < AccelerationFactorMaxPeriod; i++)
+			if (stopLossOrder.AnalysisInfo == null)
 			{
-				if (candlesForComputing[i].MinPrice <= lastSar)
-					break;
-
-				if (candlesForComputing[i].MinPrice > candlesForComputing[i + 1].MinPrice)
-					accelerationFactorPeriod++;
-				else
-					break;
+				stopLossOrder.AnalysisInfo = new StopLossOrderInfo
+				{
+					LastMaxValue = currentCandle.MaxPrice,
+					TrailingStopAccelerationFactor = settings.ParabolicSARBaseAccelerationFactror
+				};
 			}
+			else
+			{
+				var stopLossInfo = (StopLossOrderInfo)stopLossOrder.AnalysisInfo;
+				if (currentCandle.MaxPrice > stopLossInfo.LastMaxValue)
+				{
+					stopLossInfo.LastMaxValue = currentCandle.MaxPrice;
+					if (stopLossInfo.TrailingStopAccelerationFactor < settings.ParabolicSARMaxAccelerationFactror)
+						stopLossInfo.TrailingStopAccelerationFactor += settings.ParabolicSARBaseAccelerationFactror;
+				}
 
-			var sar = lastSar + settings.ParabolicSARBaseAccelerationFactror * accelerationFactorPeriod * (currentCandle.MaxPrice - lastSar);
-
-			return sar;
+				stopLossOrder.StopPrice = stopLossOrder.Price =
+					stopLossOrder.Price +
+					stopLossInfo.TrailingStopAccelerationFactor * (stopLossInfo.LastMaxValue - stopLossOrder.Price);
+			}
 		}
 	}
 }

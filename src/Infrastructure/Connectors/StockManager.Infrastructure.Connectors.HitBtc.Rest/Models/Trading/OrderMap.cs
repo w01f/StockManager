@@ -73,8 +73,27 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 			}
 
 			//TODO Check how will be processed partially filled order
-			//TODO Probably need to make different TimeInForce setting for buy and sell orders
-			target.TimeInForce = "IOC";
+			switch (source.TimeInForce)
+			{
+				case OrderTimeInForceType.GoodTillCancelled:
+					target.OrderStateType = "GTC";
+					break;
+				case OrderTimeInForceType.ImmediateOrCancel:
+					target.OrderStateType = "IOC";
+					break;
+				case OrderTimeInForceType.FillOrKill:
+					target.OrderStateType = "FOK";
+					break;
+				case OrderTimeInForceType.UntillTheEndOfTheDay:
+					target.OrderStateType = "Day";
+					break;
+				case OrderTimeInForceType.GoodTillDate:
+					target.OrderStateType = "GTD";
+					break;
+				default:
+					throw new ConnectorException(String.Format("Undefined TimeInForce state type: {0}", source.TimeInForce), null);
+			}
+
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;
 			target.StopPrice = source.StopPrice ?? 0;
@@ -91,7 +110,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 			target.ExtId = (Int64)source.Id;
 			target.ClientId = Guid.Parse(source.ClientId);
 			target.CurrencyPair = currencyPairs.FirstOrDefault(item => item.Id == source.CurrencyPairId) ??
-								  throw new ConnectorException("Undefined currency");
+								  throw new ConnectorException(String.Format("Undefined currency: {0}", source.CurrencyPairId), null);
 
 			switch (source.OrderSide.ToLower())
 			{
@@ -102,7 +121,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					target.OrderSide = OrderSide.Buy;
 					break;
 				default:
-					throw new ConnectorException("Undefined order side", null);
+					throw new ConnectorException(String.Format("Undefined Order Side: {0}", source.OrderSide), null);
 			}
 
 			switch (source.OrderType.ToLower())
@@ -120,7 +139,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					target.OrderType = OrderType.StopMarket;
 					break;
 				default:
-					throw new ConnectorException("Undefined order type", null);
+					throw new ConnectorException(String.Format("Undefined Order Type: {0}", source.OrderType), null);
 			}
 
 			switch (source.OrderStateType.ToLower())
@@ -144,7 +163,28 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					target.OrderStateType = OrderStateType.Expired;
 					break;
 				default:
-					throw new ConnectorException("Undefined order state type", null);
+					throw new ConnectorException(String.Format("Undefined Order State: {0}", source.OrderStateType), null);
+			}
+
+			switch (source.TimeInForce.ToUpper())
+			{
+				case "GTC":
+					target.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
+					break;
+				case "IOC":
+					target.TimeInForce = OrderTimeInForceType.ImmediateOrCancel;
+					break;
+				case "FOK":
+					target.TimeInForce = OrderTimeInForceType.FillOrKill;
+					break;
+				case "Day":
+					target.TimeInForce = OrderTimeInForceType.UntillTheEndOfTheDay;
+					break;
+				case "GTD":
+					target.TimeInForce = OrderTimeInForceType.GoodTillDate;
+					break;
+				default:
+					throw new ConnectorException(String.Format("Undefined TimeIn Force: {0}", source.TimeInForce), null);
 			}
 
 			target.Quantity = source.Quantity;

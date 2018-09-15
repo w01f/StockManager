@@ -1,4 +1,7 @@
-﻿using StockManager.Infrastructure.Common.Common;
+﻿using System;
+using Newtonsoft.Json;
+using StockManager.Domain.Core.Enums;
+using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Common.Models.Trading
@@ -13,13 +16,30 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 			target.ClientId = source.ClientId;
 			target.ParentClientId = source.ParentClientId;
 			target.CurrencyPair = currencyPair.Id == source.CurrencyPair ? currencyPair :
-				throw new BusinessException("Undefined currency");
+				throw new BusinessException("Undefined currency")
+				{
+					Details = String.Format("Expected currency: {0}; Received currency {1}", currencyPair.Id, source.CurrencyPair)
+				};
+			target.Role = source.Role;
 			target.OrderSide = source.OrderSide;
 			target.OrderType = source.OrderType;
 			target.OrderStateType = source.OrderStateType;
+			target.TimeInForce = source.TimeInForce;
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;
 			target.StopPrice = source.StopPrice;
+
+			if (!String.IsNullOrEmpty(source.AnalysisInfoEncoded))
+				switch (source.Role)
+				{
+					case OrderRoleType.StopLoss:
+						target.AnalysisInfo = JsonConvert.DeserializeObject<StopLossOrderInfo>(source.AnalysisInfoEncoded);
+						break;
+					default:
+						target.AnalysisInfo = null;
+						break;
+				}
+
 			target.Created = source.Created;
 			target.Updated = source.Updated;
 
@@ -35,12 +55,18 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 			target.ClientId = source.ClientId;
 			target.ParentClientId = source.ParentClientId;
 			target.CurrencyPair = source.CurrencyPair.Id;
+			target.Role = source.Role;
 			target.OrderSide = source.OrderSide;
 			target.OrderType = source.OrderType;
 			target.OrderStateType = source.OrderStateType;
+			target.TimeInForce = source.TimeInForce;
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;
 			target.StopPrice = source.StopPrice;
+
+			if (source.AnalysisInfo != null)
+				target.AnalysisInfoEncoded = JsonConvert.SerializeObject(source.AnalysisInfo);
+
 			target.Created = source.Created;
 			target.Updated = source.Updated;
 
@@ -55,12 +81,18 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 			target.ClientId = source.ClientId;
 			target.ParentClientId = source.ParentClientId;
 			target.CurrencyPair = source.CurrencyPair.Id;
+			target.Role = source.Role;
 			target.OrderSide = source.OrderSide;
 			target.OrderType = source.OrderType;
 			target.OrderStateType = source.OrderStateType;
+			target.TimeInForce = source.TimeInForce;
 			target.Quantity = source.Quantity;
 			target.Price = source.Price;
 			target.StopPrice = source.StopPrice;
+
+			if (source.AnalysisInfo != null)
+				target.AnalysisInfoEncoded = JsonConvert.SerializeObject(source.AnalysisInfo);
+
 			target.Created = source.Created;
 			target.Updated = source.Updated;
 

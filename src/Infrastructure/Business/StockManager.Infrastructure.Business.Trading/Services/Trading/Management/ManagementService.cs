@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPosition;
@@ -9,6 +10,7 @@ using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewP
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
+using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Models.Errors;
 using StockManager.Infrastructure.Utilities.Logging.Services;
 
@@ -66,7 +68,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 							await _orderService.CancelOrder(activeOrderPair);
 					}
 					else
-						throw new ArgumentException("Unexpected order pair state");
+						throw new BusinessException("Unexpected order pair state")
+						{
+							Details = String.Format("Order pair: {0}", JsonConvert.SerializeObject(activeOrderPair))
+						};
 				}
 				else
 				{
@@ -74,6 +79,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 					if (marketInfo.PositionType != NewMarketPositionType.Wait)
 						await _orderService.OpenOrder((NewOrderPositionInfo)marketInfo, settings);
 				}
+			}
+			catch (BusinessException e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					Details = e.Details,
+					StackTrace = e.StackTrace
+				});
+				throw;
 			}
 			catch (Exception e)
 			{
