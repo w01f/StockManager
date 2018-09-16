@@ -3,11 +3,12 @@ using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Analysis.Trady.Services;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
-using StockManager.Infrastructure.Business.Trading.Services.Trading;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.TradingBot
 {
@@ -15,10 +16,13 @@ namespace StockManager.TradingBot
 	{
 		public override void Load()
 		{
+			Bind<ConfigurationService>()
+				.ToSelf()
+				.InSingletonScope();
+
 			Bind<SQLiteDataContext>()
 				.ToSelf()
-				.InSingletonScope()
-				.WithConstructorArgument("connectionString", "Data Source=local_cache.db");
+				.InSingletonScope();
 
 			Bind(typeof(IRepository<>))
 				.To(typeof(CommonRepository<>));
@@ -31,7 +35,7 @@ namespace StockManager.TradingBot
 
 			Bind<IMarketNewPositionAnalysisService>()
 				.To<TripleFrameRSIStrategyAnalysisService>();
-			Bind<ProductionManagemntService>()
+			Bind<ManagementService>()
 				.ToSelf();
 		}
 	}

@@ -9,10 +9,10 @@ using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -25,24 +25,29 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		private readonly IRepository<OrderHistory> _orderHistoryRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly ConfigurationService _configurationService;
 		private readonly ILoggingService _loggingService;
 
 		public OrdersService(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
 			IRepository<OrderHistory> orderHistoryRepository,
 			IMarketDataConnector marketDataConnector,
 			ITradingDataConnector tradingDataConnector,
+			ConfigurationService configurationService,
 			ILoggingService loggingService)
 		{
 			_orderRepository = orderRepository;
 			_orderHistoryRepository = orderHistoryRepository;
 			_marketDataConnector = marketDataConnector;
 			_tradingDataConnector = tradingDataConnector;
+			_configurationService = configurationService;
 			_loggingService = loggingService;
 		}
 
-		public async Task SyncOrders(TradingSettings settings)
+		public async Task SyncOrders()
 		{
-			var currencyPair = await _marketDataConnector.GetCurrensyPair(settings.CurrencyPairId);
+			var tradingSettings = _configurationService.GetTradingSettings();
+
+			var currencyPair = await _marketDataConnector.GetCurrensyPair(tradingSettings.CurrencyPairId);
 
 			var storedOrders = _orderRepository.GetAll()
 				.Where(entity => String.Equals(entity.CurrencyPair, currencyPair.Id, StringComparison.OrdinalIgnoreCase))
@@ -53,18 +58,18 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			var storedOrderEntity = GenerateOrderPairs(storedOrders).Single();
 
+			var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
+			if (activeOrders.Any(order => order.ClientId != storedOrderEntity.Item1.ClientId &&
+										  order.ClientId != storedOrderEntity.Item2.ClientId &&
+										  order.ClientId != storedOrderEntity.Item3.ClientId))
+				throw new BusinessException("Undefined orders found");
+
 			//TODO Check if stop order will cancel after closePosition order will filled
 			var openPositionOrder = storedOrderEntity.Item1.ToModel(currencyPair);
 			if (openPositionOrder.OrderStateType != OrderStateType.Filled)
 			{
-				var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
-
-				if (activeOrders.Any(order => order.ClientId != storedOrderEntity.Item1.ClientId &&
-											  order.ClientId != storedOrderEntity.Item2.ClientId &&
-											  order.ClientId != storedOrderEntity.Item3.ClientId))
-					throw new BusinessException("Undefined orders found");
-
-				var serverSideOpenPositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item1.ClientId);
+				var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
+					await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, currencyPair);
 
 				if (serverSideOpenPositionOrder == null)
 					throw new BusinessException("Open position order not found");
@@ -100,8 +105,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			if (openPositionOrder.OrderStateType == OrderStateType.Filled)
 			{
-				var serverSideClosePositionOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item2.ClientId);
-				var serverSideStopLossOrder = await _tradingDataConnector.GetOrder(storedOrderEntity.Item3.ClientId);
+				var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item2.ClientId) ??
+					await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item2.ClientId, currencyPair);
+				var serverSideStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item3.ClientId) ??
+					await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item3.ClientId, currencyPair);
 
 				var closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
 				var stopLossOrder = storedOrderEntity.Item3.ToModel(currencyPair);
@@ -113,13 +120,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 					var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
 						.FirstOrDefault(ballance =>
-							String.Equals(ballance.CurrencyId, currencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
+							String.Equals(
+								ballance.CurrencyId,
+								currencyPair.BaseCurrencyId,
+								StringComparison.OrdinalIgnoreCase));
 
 					if (tradingBallnce == null)
 						throw new BusinessException("Trading balance is not available");
 
-					closePositionOrder.CalculateOrderAmount(tradingBallnce, settings);
-					stopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
+					closePositionOrder.CalculateSellOrderAmount(tradingBallnce, tradingSettings);
+					stopLossOrder.CalculateSellOrderAmount(tradingBallnce, tradingSettings);
 
 					serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder);
 					SyncOrderWithServer(closePositionOrder, serverSideClosePositionOrder);
@@ -217,15 +227,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			return storedOrderPair.ToModel(currencyPair);
 		}
 
-		public async Task OpenOrder(NewOrderPositionInfo positionInfo, TradingSettings settings)
+		public async Task OpenOrder(NewOrderPositionInfo positionInfo)
 		{
-			var currencyPair = await _marketDataConnector.GetCurrensyPair(settings.CurrencyPairId);
+			var tradingSettings = _configurationService.GetTradingSettings();
+
+			var currencyPair = await _marketDataConnector.GetCurrensyPair(tradingSettings.CurrencyPairId);
 
 			var openPositionOrder = new Infrastructure.Common.Models.Trading.Order();
 			openPositionOrder.ClientId = Guid.NewGuid();
 			openPositionOrder.CurrencyPair = currencyPair;
 			openPositionOrder.Role = OrderRoleType.OpenPosition;
-			openPositionOrder.OrderSide = settings.BaseOrderSide;
+			openPositionOrder.OrderSide = tradingSettings.BaseOrderSide;
 			openPositionOrder.OrderType = OrderType.StopLimit;
 			openPositionOrder.OrderStateType = OrderStateType.Suspended;
 			openPositionOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
@@ -237,7 +249,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			closePositionOrder.ParentClientId = openPositionOrder.ClientId;
 			closePositionOrder.CurrencyPair = currencyPair;
 			openPositionOrder.Role = OrderRoleType.ClosePosition;
-			closePositionOrder.OrderSide = settings.OppositeOrderSide;
+			closePositionOrder.OrderSide = tradingSettings.OppositeOrderSide;
 			closePositionOrder.OrderType = OrderType.StopLimit;
 			closePositionOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
 			closePositionOrder.Price = positionInfo.ClosePrice;
@@ -248,7 +260,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			stopLossOrder.ParentClientId = openPositionOrder.ClientId;
 			stopLossOrder.CurrencyPair = currencyPair;
 			openPositionOrder.Role = OrderRoleType.StopLoss;
-			stopLossOrder.OrderSide = settings.OppositeOrderSide;
+			stopLossOrder.OrderSide = tradingSettings.OppositeOrderSide;
 			stopLossOrder.OrderType = OrderType.StopMarket;
 			stopLossOrder.OrderStateType = OrderStateType.Suspended;
 			stopLossOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
@@ -256,12 +268,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			stopLossOrder.StopPrice = positionInfo.StopLossPrice;
 
 			var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-				.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, currencyPair.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase));
+				.FirstOrDefault(ballance => String.Equals(
+					ballance.CurrencyId,
+					currencyPair.QuoteCurrencyId,
+					StringComparison.OrdinalIgnoreCase));
 
 			if (tradingBallnce == null)
 				throw new BusinessException("Trading balance is not available");
 
-			openPositionOrder.CalculateOrderAmount(tradingBallnce, settings);
+			openPositionOrder.CalculateBuyOrderAmount(tradingBallnce, tradingSettings);
 
 			var serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder);
 			SyncOrderWithServer(openPositionOrder, serverSideOpenPositionOrder);
@@ -275,8 +290,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Create));
 		}
 
-		public async Task UpdateOrder(OrderPair orderPair, TradingSettings settings)
+		public async Task UpdateOrder(OrderPair orderPair)
 		{
+			var tradingSettings = _configurationService.GetTradingSettings();
+
 			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
 					.ToList())
@@ -296,12 +313,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				orderPair.StopLossOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
 
 				var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase));
+					.FirstOrDefault(ballance => String.Equals(
+						ballance.CurrencyId,
+						orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId,
+						StringComparison.OrdinalIgnoreCase));
 
 				if (tradingBallnce == null)
 					throw new BusinessException("Trading balance is not available");
 
-				orderPair.OpenPositionOrder.CalculateOrderAmount(tradingBallnce, settings);
+				orderPair.OpenPositionOrder.CalculateBuyOrderAmount(tradingBallnce, tradingSettings);
 
 				orderPair.OpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder);
 
@@ -333,13 +353,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				orderPair.StopLossOrder.ClientId = Guid.NewGuid();
 
 				var tradingBallnce = (await _tradingDataConnector.GetTradingBallnce())
-					.FirstOrDefault(ballance => String.Equals(ballance.CurrencyId, orderPair.ClosePositionOrder.CurrencyPair.BaseCurrencyId, StringComparison.OrdinalIgnoreCase));
+					.FirstOrDefault(ballance => String.Equals(
+						ballance.CurrencyId, orderPair.
+						ClosePositionOrder.CurrencyPair.BaseCurrencyId,
+						StringComparison.OrdinalIgnoreCase));
 
 				if (tradingBallnce == null)
 					throw new BusinessException("Trading balance is not available");
 
-				orderPair.ClosePositionOrder.CalculateOrderAmount(tradingBallnce, settings);
-				orderPair.StopLossOrder.CalculateOrderAmount(tradingBallnce, settings);
+				orderPair.ClosePositionOrder.CalculateSellOrderAmount(tradingBallnce, tradingSettings);
+				orderPair.StopLossOrder.CalculateSellOrderAmount(tradingBallnce, tradingSettings);
 
 				orderPair.ClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder);
 				orderPair.StopLossOrder = await _tradingDataConnector.CreateOrder(orderPair.StopLossOrder);

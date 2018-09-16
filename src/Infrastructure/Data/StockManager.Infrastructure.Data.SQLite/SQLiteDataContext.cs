@@ -3,6 +3,7 @@ using StockManager.Domain.Core.Entities.Logging;
 using StockManager.Domain.Core.Entities.Market;
 using StockManager.Domain.Core.Entities.Trading;
 using StockManager.Infrastructure.Data.SQLite.Mappers;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Data.SQLite
 {
@@ -19,6 +20,9 @@ namespace StockManager.Infrastructure.Data.SQLite
 		{
 			_connectionString = connectionString;
 		}
+
+		public SQLiteDataContext(ConfigurationService configurationService)
+			: this(configurationService.GetDatabaseConnectionSettings().ConnectionString) { }
 
 		protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
 		{

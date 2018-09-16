@@ -253,10 +253,10 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Trady.Analysis, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\Trady.Analysis.3.1.1\lib\netstandard2.0\Trady.Analysis.dll</HintPath>
+      <HintPath>..\..\..\packages\Trady.Analysis.3.2.0\lib\netstandard2.0\Trady.Analysis.dll</HintPath>
     </Reference>
     <Reference Include="Trady.Core, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\..\..\packages\Trady.Core.3.1.0\lib\netstandard2.0\Trady.Core.dll</HintPath>
+      <HintPath>..\..\..\packages\Trady.Core.3.2.0\lib\netstandard2.0\Trady.Core.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
@@ -315,6 +315,18 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <None Include="Settings\Analysis.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="Settings\DatabaseConnection.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="Settings\ExchangeConnection.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="Settings\Trading.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -359,6 +371,10 @@
     <ProjectReference Include="..\..\Infrastructure\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj">
       <Project>{c577f411-b327-4895-9032-a9d8c402025f}</Project>
       <Name>StockManager.Infrastructure.Common</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Infrastructure\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj">
+      <Project>{79D8BB2E-5C57-4DFC-8DBB-C245262C10AA}</Project>
+      <Name>StockManager.Infrastructure.Utilities.Configuration</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

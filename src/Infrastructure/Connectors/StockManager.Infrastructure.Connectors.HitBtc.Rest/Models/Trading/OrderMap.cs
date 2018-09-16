@@ -15,7 +15,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 				target = new Order();
 
 			target.Id = source.ExtId;
-			target.ClientId = source.ClientId.ToString();
+			target.ClientId = source.ClientId.ToString("N");
 			target.CurrencyPairId = source.CurrencyPair.Id;
 
 			switch (source.OrderSide)
@@ -76,19 +76,19 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 			switch (source.TimeInForce)
 			{
 				case OrderTimeInForceType.GoodTillCancelled:
-					target.OrderStateType = "GTC";
+					target.TimeInForce = "GTC";
 					break;
 				case OrderTimeInForceType.ImmediateOrCancel:
-					target.OrderStateType = "IOC";
+					target.TimeInForce = "IOC";
 					break;
 				case OrderTimeInForceType.FillOrKill:
-					target.OrderStateType = "FOK";
+					target.TimeInForce = "FOK";
 					break;
 				case OrderTimeInForceType.UntillTheEndOfTheDay:
-					target.OrderStateType = "Day";
+					target.TimeInForce = "Day";
 					break;
 				case OrderTimeInForceType.GoodTillDate:
-					target.OrderStateType = "GTD";
+					target.TimeInForce = "GTD";
 					break;
 				default:
 					throw new ConnectorException(String.Format("Undefined TimeInForce state type: {0}", source.TimeInForce), null);
@@ -103,16 +103,16 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 			return target;
 		}
 
-		public static Infrastructure.Common.Models.Trading.Order ToOuterModel(this Order source, IList<CurrencyPair> currencyPairs)
+		public static Infrastructure.Common.Models.Trading.Order ToOuterModel(this Order source, CurrencyPair currencyPair)
 		{
 			var target = new Infrastructure.Common.Models.Trading.Order();
 
 			target.ExtId = (Int64)source.Id;
 			target.ClientId = Guid.Parse(source.ClientId);
-			target.CurrencyPair = currencyPairs.FirstOrDefault(item => item.Id == source.CurrencyPairId) ??
+			target.CurrencyPair = currencyPair ??
 								  throw new ConnectorException(String.Format("Undefined currency: {0}", source.CurrencyPairId), null);
 
-			switch (source.OrderSide.ToLower())
+			switch (source.OrderSide)
 			{
 				case "sell":
 					target.OrderSide = OrderSide.Sell;
@@ -124,7 +124,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					throw new ConnectorException(String.Format("Undefined Order Side: {0}", source.OrderSide), null);
 			}
 
-			switch (source.OrderType.ToLower())
+			switch (source.OrderType)
 			{
 				case "limit":
 					target.OrderType = OrderType.Limit;
@@ -142,7 +142,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					throw new ConnectorException(String.Format("Undefined Order Type: {0}", source.OrderType), null);
 			}
 
-			switch (source.OrderStateType.ToLower())
+			switch (source.OrderStateType)
 			{
 				case "new":
 					target.OrderStateType = OrderStateType.New;
@@ -166,7 +166,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 					throw new ConnectorException(String.Format("Undefined Order State: {0}", source.OrderStateType), null);
 			}
 
-			switch (source.TimeInForce.ToUpper())
+			switch (source.TimeInForce)
 			{
 				case "GTC":
 					target.TimeInForce = OrderTimeInForceType.GoodTillCancelled;

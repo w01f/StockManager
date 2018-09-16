@@ -12,6 +12,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition
 {
@@ -19,17 +20,21 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	{
 		public TripleFrameWilliamRStrategyAnalysisService(IRepository<Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
-			IIndicatorComputingService indicatorComputingService)
+			IIndicatorComputingService indicatorComputingService,
+			ConfigurationService configurationService)
 		{
 			CandleRepository = candleRepository;
 			MarketDataConnector = marketDataConnector;
 			IndicatorComputingService = indicatorComputingService;
+			ConfigurationService = configurationService;
 		}
 
-		public async Task<NewPositionInfo> ProcessMarketPosition(TradingSettings settings)
+		public async Task<NewPositionInfo> ProcessMarketPosition()
 		{
+			var settings = ConfigurationService.GetTradingSettings();
+
 			NewPositionInfo newPositionInfo;
-			var conditionCheckingResult = await CheckConditions(settings);
+			var conditionCheckingResult = await CheckConditions();
 
 			switch (conditionCheckingResult.ResultType)
 			{
@@ -39,7 +44,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var candles = await CandleLoader.Load(
 						settings.CurrencyPairId,
 						settings.Period,
-						settings.CandleRangeSize,
+						2,
 						settings.Moment,
 						CandleRepository,
 						MarketDataConnector);
@@ -54,7 +59,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					buyPositionInfo.ClosePrice =
 					buyPositionInfo.CloseStopPrice = candles.Max(candle => candle.MaxPrice);
 
-					buyPositionInfo.StopLossPrice = candles.Skip(candles.Count - 2).Min(candle => candle.MinPrice) - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
+					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice) - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
 
 					newPositionInfo = buyPositionInfo;
 					break;
@@ -67,8 +72,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		}
 
 		//TODO Try to extract logical steps into separate objects
-		protected override async Task<ConditionCheckingResult> CheckConditions(TradingSettings settings)
+		protected override async Task<ConditionCheckingResult> CheckConditions()
 		{
+			var settings = ConfigurationService.GetTradingSettings();
+
 			var conditionCheckingResult = new ConditionCheckingResult() { ResultType = ConditionCheckingResultType.Failed };
 
 			var firstFrameMACDSettings = new MACDSettings

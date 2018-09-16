@@ -29,7 +29,14 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 
 		public async Task<Infrastructure.Common.Models.Market.CurrencyPair> GetCurrensyPair(string id)
 		{
-			throw new NotImplementedException();
+			var connection = new ApiConnection();
+			var request = new RestRequest(String.Format("public/symbol/{0}", id), Method.GET);
+			request.Configure();
+			var response = await connection.DoRequest(request);
+			var currencyPair = response
+				.ExtractData<CurrencyPair>()
+				?.ToOuterModel();
+			return currencyPair;
 		}
 
 		public async Task<IList<Infrastructure.Common.Models.Market.Candle>> GetCandles(String currencyPairId, CandlePeriod period, int limit)
@@ -87,9 +94,20 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			return candles;
 		}
 
-		public async Task<IList<OrderBookItem>> GetOrderBook(String currencyPairId, Int32 limit)
+		public async Task<IList<OrderBookItem>> GetOrderBook(string currencyPairId, int limit)
 		{
-			throw new NotImplementedException();
+			var connection = new ApiConnection();
+			var request = new RestRequest(String.Format("public/orderbook/{0}", currencyPairId), Method.GET);
+			request.Configure();
+
+			request.AddParameter("limit", limit);
+
+			var response = await connection.DoRequest(request);
+			var orderBookItems = response
+				.ExtractData<OrderBook>()
+				?.ToOuterModel();
+
+			return orderBookItems ?? new OrderBookItem[] { };
 		}
 	}
 }

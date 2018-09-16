@@ -13,6 +13,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition
 {
@@ -21,18 +22,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		private readonly IRepository<Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
+		private readonly ConfigurationService _configurationService;
 
 		public PendingPositionWilliamsRAnalysisService(IRepository<Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
-			IIndicatorComputingService indicatorComputingService)
+			IIndicatorComputingService indicatorComputingService,
+			ConfigurationService configurationService)
 		{
 			_candleRepository = candleRepository;
 			_marketDataConnector = marketDataConnector;
 			_indicatorComputingService = indicatorComputingService;
+			_configurationService = configurationService;
 		}
 
-		public async Task<PendingPositionInfo> ProcessMarketPosition(TradingSettings settings, OrderPair activeOrderPair)
+		public async Task<PendingPositionInfo> ProcessMarketPosition(OrderPair activeOrderPair)
 		{
+			var settings = _configurationService.GetTradingSettings();
+
 			var williamsRSettings = new CommonIndicatorSettings
 			{
 				Period = 5
@@ -84,7 +90,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					{
 						stopOpenPrice = 0;
 
-						var nearestBidSupportPrice = await GetNearestBidSupportPrice(settings);
+						var nearestBidSupportPrice = await GetNearestBidSupportPrice();
 						openPrice = new[]
 						{
 							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
@@ -151,7 +157,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					{
 						stopOpenPrice = 0;
 
-						var nearestBidSupportPrice = await GetNearestBidSupportPrice(settings);
+						var nearestBidSupportPrice = await GetNearestBidSupportPrice();
 						openPrice = new[]
 						{
 							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
@@ -174,8 +180,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			}
 		}
 
-		private async Task<decimal> GetNearestBidSupportPrice(TradingSettings settings)
+		private async Task<decimal> GetNearestBidSupportPrice()
 		{
+			var settings = _configurationService.GetTradingSettings();
+
 			var orderBookBidItems = (await _marketDataConnector.GetOrderBook(settings.CurrencyPairId, 20))
 				.Where(item => item.Type == OrderBookItemType.Bid)
 				.ToList();

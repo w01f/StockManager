@@ -10,6 +10,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
 		{
 			target.AddHeader("Content-Type", "application/json");
 			target.AddHeader("Accept", "*/*");
+			target.AddHeader("Connection", "keep-alive");
 			target.RequestFormat = DataFormat.Json;
 		}
 

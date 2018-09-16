@@ -10,8 +10,8 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 	{
 		Task<IList<TradingBallance>> GetTradingBallnce();
 		Task<IList<Order>> GetActiveOrders(CurrencyPair currencyPair);
-		Task<Order> GetOrder(Guid clinetOrderId);
-		Task<Order> CreateOrder(Order order);
-		Task<Order> CancelOrder(Order order);
+		Task<Order> GetOrderFromHistory(Guid clientOrderId, CurrencyPair currencyPair);
+		Task<Order> CreateOrder(Order initialOrder);
+		Task<Order> CancelOrder(Order initialOrder);
 	}
 }

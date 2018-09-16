@@ -1,19 +1,10 @@
 ﻿using StockManager.Domain.Core.Enums;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Utilities.Configuration.Models;
 
 namespace StockManager.Infrastructure.Business.Trading.Helpers
 {
 	public static class TradingSettingsHelper
 	{
-		public static TradingSettings InitializeFromTemplate(this TradingSettings target, TradingSettings template)
-		{
-			target.Moment = template.Moment;
-			target.CurrencyPairId = template.CurrencyPairId;
-			target.Period = template.Period;
-			target.CandleRangeSize = template.CandleRangeSize;
-			return target;
-		}
-
 		public static CandlePeriod GetLowerFramePeriod(this CandlePeriod targetPeriod)
 		{
 			switch (targetPeriod)

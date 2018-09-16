@@ -1,4 +1,6 @@
-﻿using Ninject.Modules;
+﻿using System.IO;
+using System.Reflection;
+using Ninject.Modules;
 using StockManager.Dashboard.Controllers;
 using StockManager.Dashboard.Views;
 using StockManager.Domain.Core.Repositories;
@@ -10,6 +12,7 @@ using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Dashboard
 {
@@ -17,10 +20,13 @@ namespace StockManager.Dashboard
 	{
 		public override void Load()
 		{
+			Bind<ConfigurationService>()
+				.ToSelf()
+				.InSingletonScope();
+
 			Bind<SQLiteDataContext>()
 				.ToSelf()
-				.InSingletonScope()
-				.WithConstructorArgument("connectionString", "Data Source=local_cache.db");
+				.InSingletonScope();
 
 			Bind(typeof(IRepository<>))
 				.To(typeof(CommonRepository<>));

@@ -5,8 +5,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Services\Trading\Orders\OrdersService.cs~RF6311649.TMP" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
     <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
+    <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj" />
     <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Logging\StockManager.Infrastructure.Utilities.Logging.csproj" />
     <ProjectReference Include="..\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
   </ItemGroup>

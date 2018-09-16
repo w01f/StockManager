@@ -3,8 +3,8 @@ using StockManager.Domain.Core.Entities.Market;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition
 {
@@ -13,7 +13,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		protected IRepository<Candle> CandleRepository { get; set; }
 		protected IMarketDataConnector MarketDataConnector { get; set; }
 		protected IIndicatorComputingService IndicatorComputingService { get; set; }
+		protected ConfigurationService ConfigurationService { get; set; }
 
-		protected abstract Task<ConditionCheckingResult> CheckConditions(TradingSettings settings);
+		protected abstract Task<ConditionCheckingResult> CheckConditions();
 	}
 }

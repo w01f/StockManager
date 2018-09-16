@@ -5,10 +5,10 @@ using StockManager.Infrastructure.Analysis.Common.Common;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Common.Helpers;
-using StockManager.Infrastructure.Business.Trading.Helpers;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 using CommonIndicatorSettings = StockManager.Infrastructure.Business.Chart.Models.CommonIndicatorSettings;
 using IndicatorType = StockManager.Infrastructure.Business.Chart.Models.IndicatorType;
 using MACDSettings = StockManager.Infrastructure.Business.Chart.Models.MACDSettings;
@@ -22,16 +22,19 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
+		private readonly ConfigurationService _configurationService;
 
 		public ChartService(IRepository<Domain.Core.Entities.Market.Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService,
-			IMarketNewPositionAnalysisService marketNewPositionAnalysisService)
+			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
+			ConfigurationService configurationService)
 		{
 			_candleRepository = candleRepository;
 			_marketDataConnector = marketDataConnector;
 			_indicatorComputingService = indicatorComputingService;
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
+			_configurationService = configurationService;
 		}
 
 		public async Task<ChartDataset> GetChartData(ChartSettings settings)
@@ -106,19 +109,21 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				chartDataset.IndicatorData.Add(indicatorDataset);
 			}
 
-			var defaultTradindSettings = new TradingSettings
-			{
-				CurrencyPairId = settings.CurrencyPairId,
-				Period = settings.Period,
-				Moment = settings.CurrentMoment,
-				CandleRangeSize = settings.CandleRangeSize
-			};
+			var defaultTradindSettings = _configurationService.GetTradingSettings();
+
+			var tradingSettings = _configurationService.GetTradingSettings();
+			tradingSettings.CurrencyPairId = settings.CurrencyPairId;
+			tradingSettings.Period = settings.Period;
+			tradingSettings.Moment = settings.CurrentMoment;
+			_configurationService.UpdateTradingSettings(tradingSettings);
 
 			foreach (var candle in chartDataset.Candles)
 			{
-				var tradingSettings = new TradingSettings().InitializeFromTemplate(defaultTradindSettings);
 				tradingSettings.Moment = candle.Moment;
-				//var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tradingSettings);
+
+				_configurationService.UpdateTradingSettings(tradingSettings);
+
+				//var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition();
 
 				var tradingData = new TradingData
 				{
@@ -133,6 +138,8 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				//}
 				chartDataset.TradingData.Add(tradingData);
 			}
+
+			_configurationService.UpdateTradingSettings(defaultTradindSettings);
 
 			return chartDataset;
 		}

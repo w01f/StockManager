@@ -15,6 +15,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition
 {
@@ -23,18 +24,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		private readonly IRepository<Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
+		private readonly ConfigurationService _configurationService;
 
 		public OpenPositionAnalysisService(IRepository<Candle> candleRepository,
 			IMarketDataConnector marketDataConnector,
-			IIndicatorComputingService indicatorComputingService)
+			IIndicatorComputingService indicatorComputingService,
+			ConfigurationService configurationService)
 		{
 			_candleRepository = candleRepository;
 			_marketDataConnector = marketDataConnector;
 			_indicatorComputingService = indicatorComputingService;
+			_configurationService = configurationService;
 		}
 
-		public async Task<OpenPositionInfo> ProcessMarketPosition(TradingSettings settings, OrderPair activeOrderPair)
+		public async Task<OpenPositionInfo> ProcessMarketPosition(OrderPair activeOrderPair)
 		{
+			var settings = _configurationService.GetTradingSettings();
+
 			var initialPositionInfo = new UpdateClosePositionInfo
 			{
 				ClosePrice = activeOrderPair.ClosePositionOrder.Price,
@@ -78,7 +84,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			{
 				if (currentCandle != null)
 				{
-					ComputeStopLossUsingParabolicSAR(activeOrderPair.StopLossOrder, currentCandle, settings);
+					ComputeStopLossUsingParabolicSAR(
+						activeOrderPair.StopLossOrder, 
+						currentCandle);
 
 					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
 							targetPeriodLastCandles,
@@ -186,9 +194,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 		private void ComputeStopLossUsingParabolicSAR(
 			Order stopLossOrder,
-			Infrastructure.Common.Models.Market.Candle currentCandle,
-			TradingSettings settings)
+			Infrastructure.Common.Models.Market.Candle currentCandle)
 		{
+			var settings = _configurationService.GetAnalysisSettings();
+
 			if (stopLossOrder.AnalysisInfo == null)
 			{
 				stopLossOrder.AnalysisInfo = new StopLossOrderInfo

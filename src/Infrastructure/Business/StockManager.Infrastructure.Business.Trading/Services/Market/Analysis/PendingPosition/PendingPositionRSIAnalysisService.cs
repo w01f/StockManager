@@ -9,6 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Pendin
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition
 {
@@ -16,16 +17,21 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	{
 		private readonly IRepository<Candle> _candleRepository;
 		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly ConfigurationService _configurationService;
 
 		public PendingPositionRSIAnalysisService(IRepository<Candle> candleRepository,
-			IMarketDataConnector marketDataConnector)
+			IMarketDataConnector marketDataConnector,
+			ConfigurationService configurationService)
 		{
 			_candleRepository = candleRepository;
 			_marketDataConnector = marketDataConnector;
+			_configurationService = configurationService;
 		}
 
-		public async Task<PendingPositionInfo> ProcessMarketPosition(TradingSettings settings, OrderPair activeOrderPair)
+		public async Task<PendingPositionInfo> ProcessMarketPosition(OrderPair activeOrderPair)
 		{
+			var settings = _configurationService.GetTradingSettings();
+
 			var targetPeriodLastCandles = (await CandleLoader.Load(
 				settings.CurrencyPairId,
 				settings.Period,
