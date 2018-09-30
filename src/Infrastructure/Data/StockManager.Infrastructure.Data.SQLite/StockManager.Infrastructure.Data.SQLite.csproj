@@ -22,8 +22,4 @@
     <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Migrations\" />
-  </ItemGroup>
-
 </Project>

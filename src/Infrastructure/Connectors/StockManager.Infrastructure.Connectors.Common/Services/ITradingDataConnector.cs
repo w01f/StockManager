@@ -8,7 +8,7 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public interface ITradingDataConnector
 	{
-		Task<IList<TradingBallance>> GetTradingBallnce();
+		Task<TradingBallance> GetTradingBallnce(string currencyId);
 		Task<IList<Order>> GetActiveOrders(CurrencyPair currencyPair);
 		Task<Order> GetOrderFromHistory(Guid clientOrderId, CurrencyPair currencyPair);
 		Task<Order> CreateOrder(Order initialOrder);

@@ -11,5 +11,7 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 		Task<CurrencyPair> GetCurrensyPair(string id);
 		Task<IList<Candle>> GetCandles(string currencyPairId, CandlePeriod period, int limit);
 		Task<IList<OrderBookItem>> GetOrderBook(string currencyPairId, int limit);
+		Task<IList<Ticker>> GetTickers();
+		Task<Ticker> GetTicker(string currencyPairId);
 	}
 }

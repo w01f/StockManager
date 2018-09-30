@@ -28,6 +28,9 @@ namespace StockManager.BackTestDataCollector
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();
 
+			Bind<CandleLoadingService>()
+				.ToSelf();
+
 			Bind<CollectorService>()
 				.ToSelf();
 		}

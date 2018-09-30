@@ -5,6 +5,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Services\Market\Analysis\OpenPosition\OpenPositionAnalysisService.cs~RF250bb383.TMP" />
     <None Remove="Services\Trading\Orders\OrdersService.cs~RF6311649.TMP" />
   </ItemGroup>
 
@@ -13,7 +14,6 @@
     <ProjectReference Include="..\..\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
     <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj" />
     <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Logging\StockManager.Infrastructure.Utilities.Logging.csproj" />
-    <ProjectReference Include="..\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

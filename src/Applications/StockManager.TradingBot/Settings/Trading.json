@@ -1,0 +1,6 @@
+{
+	"QuoteCurrencies": [ "USD", "BTC", "ETH" ],
+	"MinCurrencyPairTradingVolumeInBTC": 200.0,
+	"MaxOrderUsingBallancePart": 1.0,
+	"StopLimitPriceDifferneceFactor": 10.0
+}

@@ -10,9 +10,11 @@ namespace StockManager.Infrastructure.Utilities.Logging.Models.Orders
 		public OrderActionType OrderActionType { get; set; }
 		public Guid ClinetId { get; set; }
 		public string CurrencyPair { get; set; }
+		public OrderRoleType Role { get; set; }
 		public OrderSide OrderSide { get; set; }
 		public OrderType OrderType { get; set; }
 		public OrderStateType OrderStateType { get; set; }
+		public OrderTimeInForceType TimeInForce { get; set; }
 		public decimal Quantity { get; set; }
 		public decimal Price { get; set; }
 		public decimal? StopPrice { get; set; }

@@ -11,6 +11,20 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 {
 	public class TradyIndicatorComputingService : IIndicatorComputingService
 	{
+		public IList<BaseIndicatorValue> ComputeHighestMaxPrices(IList<Candle> candles, Int32 period)
+		{
+			var indicator = new HighestHigh(candles.Select(candle => candle.ToInnerModel()), period);
+			var innerValues = indicator.Compute();
+
+			var outputValues = new List<BaseIndicatorValue>();
+
+			outputValues.AddRange(innerValues
+				.Where(value => value.DateTime.HasValue)
+				.Select(value => value.ToOuterModel()));
+
+			return outputValues;
+		}
+
 		public IList<BaseIndicatorValue> ComputeMACD(IList<Candle> candles, int emaPeriod1, int emaPeriod2, int signalPeriod)
 		{
 			var indicator = new MovingAverageConvergenceDivergence(candles.Select(candle => candle.ToInnerModel()), emaPeriod1, emaPeriod2, signalPeriod);
@@ -56,7 +70,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 			return outputValues;
 		}
 
-		public IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, Int32 period)
+		public IList<BaseIndicatorValue> ComputeRelativeStrengthIndex(IList<Candle> candles, int period)
 		{
 			var indicator = new RelativeStrengthIndex(candles.Select(candle => candle.ToInnerModel()), period);
 			var innerValues = indicator.Compute();
@@ -86,7 +100,7 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 
 					outputValues.Add(new SimpleIndicatorValue(candles[i].Moment)
 					{
-						Value = 100 * ((maxPrice - candles[i].ClosePrice) / (maxPrice - minPrice))
+						Value = (maxPrice - minPrice) != 0 ? (100 * ((maxPrice - candles[i].ClosePrice) / (maxPrice - minPrice))) : 0
 					});
 				}
 			}

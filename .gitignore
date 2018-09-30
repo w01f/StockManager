@@ -261,3 +261,4 @@ __pycache__/
 *.pyc
 /src/Applications/StockManager.Dashboard/Settings/ExchangeConnection.json
 /src/Applications/StockManager.SandBox/Settings/ExchangeConnection.json
+/src/Applications/StockManager.TradingBot/Settings/ExchangeConnection.json

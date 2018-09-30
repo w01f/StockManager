@@ -19,6 +19,9 @@ namespace StockManager.SandBox
 			Bind<ITradingDataConnector>()
 				.To<TradingDataConnector>();
 
+			Bind<CandleLoadingService>()
+				.ToSelf();
+
 			Bind<FormMain>()
 				.ToSelf()
 				.InSingletonScope();

@@ -1,0 +1,4 @@
+{
+	"ParabolicSARBaseAccelerationFactror": 0.02,
+	"ParabolicSARMaxAccelerationFactror": 0.2
+}

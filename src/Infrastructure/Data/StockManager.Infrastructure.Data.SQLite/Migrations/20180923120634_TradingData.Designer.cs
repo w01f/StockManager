@@ -2,15 +2,17 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StockManager.Infrastructure.Data.SQLite;
 
 namespace StockManager.Infrastructure.Data.SQLite.Migrations
 {
     [DbContext(typeof(SQLiteDataContext))]
-    partial class SQLiteDataContextModelSnapshot : ModelSnapshot
+    [Migration("20180923120634_TradingData")]
+    partial class TradingData
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -190,11 +192,6 @@ namespace StockManager.Infrastructure.Data.SQLite.Migrations
                         .HasName("TradingBallanceCurrency");
 
                     b.ToTable("TradingBallance");
-
-                    b.HasData(
-                        new { Id = 1L, Available = 100m, CurrencyId = "USD", Reserved = 0m },
-                        new { Id = 2L, Available = 0m, CurrencyId = "LTC", Reserved = 0m }
-                    );
                 });
 #pragma warning restore 612, 618
         }

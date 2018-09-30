@@ -12,9 +12,11 @@ namespace StockManager.Infrastructure.Utilities.Logging.Models.Orders
 
 			action.ClinetId = source.ClientId;
 			action.CurrencyPair = source.CurrencyPair.Id;
+			action.Role = source.Role;
 			action.OrderSide = source.OrderSide;
 			action.OrderType = source.OrderType;
 			action.OrderStateType = source.OrderStateType;
+			action.TimeInForce = source.TimeInForce;
 			action.Quantity = source.Quantity;
 			action.Price = source.Price;
 			action.StopPrice = source.StopPrice;

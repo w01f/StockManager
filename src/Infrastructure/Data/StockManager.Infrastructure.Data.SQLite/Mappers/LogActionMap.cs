@@ -11,7 +11,7 @@ namespace StockManager.Infrastructure.Data.SQLite.Mappers
 			entityBuilder.Property(target => target.Moment).IsRequired();
 			entityBuilder.Property(target => target.LogActionType).IsRequired();
 			entityBuilder.Property(target => target.ExtendedOptionsEncoded).HasColumnType("text");
-			entityBuilder.HasIndex(target => new { target.Moment, ActionType = target.LogActionType }).IsUnique().HasName("UniqueLogAction");
+			entityBuilder.HasIndex(target => new { target.Moment, ActionType = target.LogActionType }).HasName("UniqueLogAction");
 			entityBuilder.HasIndex(target => target.Moment);
 		}
 	}

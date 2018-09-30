@@ -11,7 +11,6 @@ namespace StockManager.Domain.Core.Repositories
 		void Insert(IEnumerable<TEntity> entities);
 		void Update(TEntity entity);
 		void Delete(TEntity entity);
-		void Remove(TEntity entity);
 		void SaveChanges();
 	}
 }

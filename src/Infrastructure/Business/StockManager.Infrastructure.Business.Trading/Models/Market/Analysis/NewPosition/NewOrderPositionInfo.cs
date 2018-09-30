@@ -4,6 +4,8 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Ne
 {
 	public class NewOrderPositionInfo : NewPositionInfo
 	{
+		public string CurrencyPairId { get; set; }
+
 		public decimal OpenPrice { get; set; }
 		public decimal OpenStopPrice { get; set; }
 

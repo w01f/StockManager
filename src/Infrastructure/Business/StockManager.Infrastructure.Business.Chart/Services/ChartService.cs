@@ -1,11 +1,8 @@
 ﻿using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Common;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Chart.Models;
-using StockManager.Infrastructure.Business.Common.Helpers;
-using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -18,20 +15,17 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 {
 	public class ChartService
 	{
-		private readonly IRepository<Domain.Core.Entities.Market.Candle> _candleRepository;
-		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly CandleLoadingService _candleLoadingService;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly ConfigurationService _configurationService;
 
-		public ChartService(IRepository<Domain.Core.Entities.Market.Candle> candleRepository,
-			IMarketDataConnector marketDataConnector,
+		public ChartService(CandleLoadingService candleLoadingService,
 			IIndicatorComputingService indicatorComputingService,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			ConfigurationService configurationService)
 		{
-			_candleRepository = candleRepository;
-			_marketDataConnector = marketDataConnector;
+			_candleLoadingService = candleLoadingService;
 			_indicatorComputingService = indicatorComputingService;
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 			_configurationService = configurationService;
@@ -41,13 +35,11 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 		{
 			var chartDataset = new ChartDataset();
 
-			chartDataset.Candles = (await CandleLoader.Load(
+			chartDataset.Candles = (await _candleLoadingService.LoadCandles(
 				settings.CurrencyPairId,
 				settings.Period,
 				settings.CandleRangeSize,
-				settings.CurrentMoment,
-				_candleRepository,
-				_marketDataConnector)).ToList();
+				settings.CurrentMoment)).ToList();
 
 			foreach (var indicatorSettings in settings.Indicators)
 			{
@@ -55,18 +47,21 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				indicatorDataset.Settings = indicatorSettings;
 
 				var candles = indicatorSettings.CandlePeriod != settings.Period ?
-					(await CandleLoader.Load(
+					(await _candleLoadingService.LoadCandles(
 						settings.CurrencyPairId,
 						indicatorSettings.CandlePeriod,
 						settings.CandleRangeSize,
-						settings.CurrentMoment,
-						_candleRepository,
-						_marketDataConnector))
+						settings.CurrentMoment))
 					.ToList() :
 					chartDataset.Candles;
 
 				switch (indicatorSettings.Type)
 				{
+					case IndicatorType.HighestMaxPrice:
+						indicatorDataset.Values = _indicatorComputingService.ComputeHighestMaxPrices(
+							candles,
+							((CommonIndicatorSettings)indicatorSettings).Period);
+						break;
 					case IndicatorType.EMA:
 						indicatorDataset.Values = _indicatorComputingService.ComputeEMA(
 							candles,
@@ -112,7 +107,6 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 			var defaultTradindSettings = _configurationService.GetTradingSettings();
 
 			var tradingSettings = _configurationService.GetTradingSettings();
-			tradingSettings.CurrencyPairId = settings.CurrencyPairId;
 			tradingSettings.Period = settings.Period;
 			tradingSettings.Moment = settings.CurrentMoment;
 			_configurationService.UpdateTradingSettings(tradingSettings);
@@ -123,7 +117,7 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 
 				_configurationService.UpdateTradingSettings(tradingSettings);
 
-				//var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition();
+				//var newPositionInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(settings.CurrencyPairId);
 
 				var tradingData = new TradingData
 				{

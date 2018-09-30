@@ -1,54 +1,50 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Entities.Market;
-using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Helpers;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
-using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Utilities.Configuration.Models;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition
 {
 	public class TripleFrameRSIStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
-		public TripleFrameRSIStrategyAnalysisService(IRepository<Candle> candleRepository,
+		public TripleFrameRSIStrategyAnalysisService(CandleLoadingService candleLoadingService,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			CandleRepository = candleRepository;
+			CandleLoadingService = candleLoadingService;
 			MarketDataConnector = marketDataConnector;
 			IndicatorComputingService = indicatorComputingService;
 			ConfigurationService = configurationService;
 		}
 
-		public async Task<NewPositionInfo> ProcessMarketPosition()
+		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
 			NewPositionInfo newPositionInfo;
-			var conditionCheckingResult = await CheckConditions();
+			var conditionCheckingResult = await CheckConditions(currencyPair);
 
 			switch (conditionCheckingResult.ResultType)
 			{
 				case ConditionCheckingResultType.Passed:
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
+					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var candles = (await CandleLoader.Load(
-						settings.CurrencyPairId,
+					var candles = (await CandleLoadingService.LoadCandles(
+						currencyPair.Id,
 						settings.Period,
 						2,
-						settings.Moment,
-						CandleRepository,
-						MarketDataConnector)).ToList();
+						settings.Moment)).ToList();
 
 					//TODO Define stop prices
 					buyPositionInfo.OpenPrice = candles.Max(candle => candle.MaxPrice);
@@ -67,7 +63,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		}
 
 		//TODO Try to extract logical steps into separate objects
-		protected override async Task<ConditionCheckingResult> CheckConditions()
+		protected override async Task<ConditionCheckingResult> CheckConditions(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
 
@@ -80,13 +76,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				SignalPeriod = 9
 			};
 
-			var firtsFrameCandles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
+			var firtsFrameCandles = (await CandleLoadingService.LoadCandles(
+				currencyPair.Id,
 				settings.Period.GetHigherFramePeriod(),
 				firstFrameMACDSettings.RequiredCandleRangeSize,
-				settings.Moment,
-				CandleRepository,
-				MarketDataConnector)).ToList();
+				settings.Moment)).ToList();
 
 			var firstFrameMACDValues = IndicatorComputingService.ComputeMACD(
 					firtsFrameCandles,
@@ -131,13 +125,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var candleRangeSize = new[] { secondFrameMACDSettings.RequiredCandleRangeSize, secondFrameRSISettings.RequiredCandleRangeSize }.Max();
 
-			var secondFrameCandles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
+			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
+				currencyPair.Id,
 				settings.Period,
 				candleRangeSize,
-				settings.Moment,
-				CandleRepository,
-				MarketDataConnector)).ToList();
+				settings.Moment)).ToList();
 
 			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
 			var secondFrameOnePreviouseCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
@@ -234,13 +226,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						SignalPeriod = 9
 					};
 
-					var thirdFrameCandles = (await CandleLoader.Load(
-						settings.CurrencyPairId,
+					var thirdFrameCandles = (await CandleLoadingService.LoadCandles(
+						currencyPair.Id,
 						settings.Period.GetLowerFramePeriod(),
 						thirdFrameMACDSettings.EMAPeriod2,
-						settings.Moment,
-						CandleRepository,
-						MarketDataConnector)).ToList();
+						settings.Moment)).ToList();
 
 					var thirdFrameMACDValues = IndicatorComputingService.ComputeMACD(
 							thirdFrameCandles,

@@ -20,7 +20,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			_configurationService = configurationService;
 		}
 
-		public async Task<IList<Infrastructure.Common.Models.Trading.TradingBallance>> GetTradingBallnce()
+		public async Task<Infrastructure.Common.Models.Trading.TradingBallance> GetTradingBallnce(string currencyId)
 		{
 			var connection = new ApiConnection();
 			var request = new RestRequest("trading/balance", Method.GET);
@@ -33,11 +33,12 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 				exchangeConnectionSettings.ApiKey,
 				exchangeConnectionSettings.SecretKey);
 
-			var tradingBallanceList = response
+			var tradingBallance = response
 				.ExtractData<TradingBallance[]>()
+				.Where(entity => String.Equals(entity.CurrencyId, currencyId, StringComparison.OrdinalIgnoreCase))
 				.Select(entity => entity.ToOuterModel())
-				.ToList();
-			return tradingBallanceList;
+				.FirstOrDefault();
+			return tradingBallance;
 		}
 
 		public async Task<IList<Infrastructure.Common.Models.Trading.Order>> GetActiveOrders(CurrencyPair currencyPair)
@@ -55,8 +56,10 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 
 			var orders = response
 				.ExtractData<Order[]>()
+				.Where(order => order.CurrencyPairId == currencyPair.Id)
 				.Select(entity => entity.ToOuterModel(currencyPair))
 				.ToList();
+
 			return orders;
 		}
 

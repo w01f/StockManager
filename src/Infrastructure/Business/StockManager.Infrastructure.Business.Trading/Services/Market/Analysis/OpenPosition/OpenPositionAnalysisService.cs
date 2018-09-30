@@ -1,13 +1,9 @@
-﻿using System.Collections.Generic;
-using System.Data;
+﻿using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Entities.Market;
 using StockManager.Domain.Core.Enums;
-using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
-using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
@@ -21,17 +17,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 {
 	public class OpenPositionAnalysisService : IMarketOpenPositionAnalysisService
 	{
-		private readonly IRepository<Candle> _candleRepository;
+		private readonly CandleLoadingService _candleLoadingService;
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly ConfigurationService _configurationService;
 
-		public OpenPositionAnalysisService(IRepository<Candle> candleRepository,
+		public OpenPositionAnalysisService(CandleLoadingService candleLoadingService,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			_candleRepository = candleRepository;
+			_candleLoadingService = candleLoadingService;
 			_marketDataConnector = marketDataConnector;
 			_indicatorComputingService = indicatorComputingService;
 			_configurationService = configurationService;
@@ -45,14 +41,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			{
 				ClosePrice = activeOrderPair.ClosePositionOrder.Price,
 				CloseStopPrice = activeOrderPair.ClosePositionOrder.StopPrice ?? 0,
-				StopLossPrice = activeOrderPair.StopLossOrder.Price
+				StopLossPrice = activeOrderPair.StopLossOrder.StopPrice ?? 0
 			};
 
 			var newPositionInfo = new UpdateClosePositionInfo
 			{
 				ClosePrice = activeOrderPair.ClosePositionOrder.Price,
 				CloseStopPrice = activeOrderPair.ClosePositionOrder.StopPrice ?? 0,
-				StopLossPrice = activeOrderPair.StopLossOrder.Price
+				StopLossPrice = activeOrderPair.StopLossOrder.StopPrice ?? 0
 			};
 
 			var williamsRSettings = new CommonIndicatorSettings
@@ -66,27 +62,35 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				2
 			}.Max();
 
-			var targetPeriodLastCandles = (await CandleLoader.Load(
-					settings.CurrencyPairId,
+			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period,
 					candleRangeSize,
-					settings.Moment,
-					_candleRepository,
-					_marketDataConnector))
+					settings.Moment))
 				.ToList();
 
 			if (!targetPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
+			var currentTargetPeriodCandle = targetPeriodLastCandles.Last();
 
-			var currentCandle = targetPeriodLastCandles.FirstOrDefault(candle => candle.Moment == settings.Moment);
+			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
+					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+					settings.Period.GetLowerFramePeriod(),
+					williamsRSettings.Period + 1,
+					settings.Moment))
+				.ToList();
+
+			if (!lowerPeriodCandles.Any())
+				throw new NoNullAllowedException("No candles loaded");
+			var currentLowPeriodCandle = lowerPeriodCandles.Last();
 
 			if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
 			{
-				if (currentCandle != null)
+				if (currentTargetPeriodCandle.Moment == currentLowPeriodCandle.Moment)
 				{
 					ComputeStopLossUsingParabolicSAR(
-						activeOrderPair.StopLossOrder, 
-						currentCandle);
+						activeOrderPair.StopLossOrder,
+						currentTargetPeriodCandle);
 
 					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
 							targetPeriodLastCandles,
@@ -96,7 +100,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 
-					if (currentWilliamsRValue?.Value == null)
+					if (currentWilliamsRValue == null)
 					{
 						throw new NoNullAllowedException("No WilliamR values calculated");
 					}
@@ -105,7 +109,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					{
 						newPositionInfo.CloseStopPrice = new[]
 						{
-							currentCandle.MinPrice,
+							currentTargetPeriodCandle.MinPrice,
 							activeOrderPair.ClosePositionOrder.StopPrice ?? 0,
 							newPositionInfo.StopLossPrice + activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor
 						}.Max();
@@ -114,20 +118,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				}
 				else
 				{
-					var lowerPeriodCandles = (await CandleLoader.Load(
-							settings.CurrencyPairId,
-							settings.Period.GetLowerFramePeriod(),
-							williamsRSettings.Period + 1,
-							settings.Moment,
-							_candleRepository,
-							_marketDataConnector))
-						.ToList();
-
-					if (!lowerPeriodCandles.Any())
-						throw new NoNullAllowedException("No candles loaded");
-
-					var currentLowPeriodCandle = lowerPeriodCandles.Last();
-
 					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
 							lowerPeriodCandles,
 							williamsRSettings.Period)
@@ -156,7 +146,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			{
 				newPositionInfo.CloseStopPrice = 0;
 
-				var orderBookAskItems = (await _marketDataConnector.GetOrderBook(settings.CurrencyPairId, 20))
+				var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
 					.Where(item => item.Type == OrderBookItemType.Ask)
 					.ToList();
 
@@ -185,8 +175,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			}
 
 			if (initialPositionInfo.CloseStopPrice == newPositionInfo.CloseStopPrice &&
-			   initialPositionInfo.CloseStopPrice == newPositionInfo.ClosePrice &&
-			   initialPositionInfo.CloseStopPrice == newPositionInfo.StopLossPrice)
+			   initialPositionInfo.ClosePrice == newPositionInfo.ClosePrice &&
+			   initialPositionInfo.StopLossPrice == newPositionInfo.StopLossPrice)
 				return new HoldPositionInfo();
 
 			return newPositionInfo;
@@ -194,7 +184,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 		private void ComputeStopLossUsingParabolicSAR(
 			Order stopLossOrder,
-			Infrastructure.Common.Models.Market.Candle currentCandle)
+			Common.Models.Market.Candle currentCandle)
 		{
 			var settings = _configurationService.GetAnalysisSettings();
 
@@ -216,9 +206,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						stopLossInfo.TrailingStopAccelerationFactor += settings.ParabolicSARBaseAccelerationFactror;
 				}
 
-				stopLossOrder.StopPrice = stopLossOrder.Price =
-					stopLossOrder.Price +
-					stopLossInfo.TrailingStopAccelerationFactor * (stopLossInfo.LastMaxValue - stopLossOrder.Price);
+				stopLossOrder.StopPrice = stopLossOrder.StopPrice +
+					stopLossInfo.TrailingStopAccelerationFactor * (stopLossInfo.LastMaxValue - stopLossOrder.StopPrice);
 			}
 		}
 	}

@@ -1,16 +1,14 @@
 ﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Entities.Market;
-using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
-using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
@@ -18,46 +16,49 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 {
 	public class TripleFrameWilliamRStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
-		public TripleFrameWilliamRStrategyAnalysisService(IRepository<Candle> candleRepository,
+		public TripleFrameWilliamRStrategyAnalysisService(CandleLoadingService candleLoadingService,
 			IMarketDataConnector marketDataConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			CandleRepository = candleRepository;
+			CandleLoadingService = candleLoadingService;
 			MarketDataConnector = marketDataConnector;
 			IndicatorComputingService = indicatorComputingService;
 			ConfigurationService = configurationService;
 		}
 
-		public async Task<NewPositionInfo> ProcessMarketPosition()
+		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
 
 			NewPositionInfo newPositionInfo;
-			var conditionCheckingResult = await CheckConditions();
+			var conditionCheckingResult = await CheckConditions(currencyPair);
 
 			switch (conditionCheckingResult.ResultType)
 			{
 				case ConditionCheckingResultType.Passed:
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
+					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var candles = await CandleLoader.Load(
-						settings.CurrencyPairId,
+					var candles = await CandleLoadingService.LoadCandles(
+						currencyPair.Id,
 						settings.Period,
-						2,
-						settings.Moment,
-						CandleRepository,
-						MarketDataConnector);
+						14,
+						settings.Moment);
 
 					var currentCandle = candles.Last();
-
-					var currencyPair = await MarketDataConnector.GetCurrensyPair(settings.CurrencyPairId);
 
 					buyPositionInfo.OpenPrice = currentCandle.MaxPrice - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
 					buyPositionInfo.OpenStopPrice = currentCandle.MaxPrice;
 
+					var lastPeakValue = IndicatorComputingService.ComputeHighestMaxPrices(
+							candles,
+							candles.Count)
+						.OfType<SimpleIndicatorValue>()
+						.LastOrDefault();
+
 					buyPositionInfo.ClosePrice =
-					buyPositionInfo.CloseStopPrice = candles.Max(candle => candle.MaxPrice);
+					buyPositionInfo.CloseStopPrice = lastPeakValue?.Value ?? candles.Max(candle => candle.MaxPrice);
 
 					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice) - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
 
@@ -72,7 +73,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		}
 
 		//TODO Try to extract logical steps into separate objects
-		protected override async Task<ConditionCheckingResult> CheckConditions()
+		protected override async Task<ConditionCheckingResult> CheckConditions(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
 
@@ -85,13 +86,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				SignalPeriod = 9
 			};
 
-			var firtsFrameCandles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
+			var firtsFrameCandles = (await CandleLoadingService.LoadCandles(
+				currencyPair.Id,
 				settings.Period.GetHigherFramePeriod(),
 				firstFrameMACDSettings.RequiredCandleRangeSize,
-				settings.Moment,
-				CandleRepository,
-				MarketDataConnector)).ToList();
+				settings.Moment)).ToList();
 
 			var firstFrameMACDValues = IndicatorComputingService.ComputeMACD(
 					firtsFrameCandles,
@@ -123,13 +122,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				Period = 5
 			};
 
-			var secondFrameCandles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
+			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
+				currencyPair.Id,
 				settings.Period,
 				secondFrameWilliamsRSettings.Period + 1,
-				settings.Moment,
-				CandleRepository,
-				MarketDataConnector)).ToList();
+				settings.Moment)).ToList();
 
 			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
 			var secondFrameOnePreviouseCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
@@ -140,13 +137,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return conditionCheckingResult;
 			}
 
-			//if previouse volume lower then current 
-			//if price changing direction from previouse candle to current
-			if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
-				  (secondFrameOnePreviouseCandle.IsFallingCandle || secondFrameCurrentCandle.OpenPrice < secondFrameOnePreviouseCandle.ClosePrice)))
-			{
-				return conditionCheckingResult;
-			}
+			////if previouse volume lower then current 
+			////if price changing direction from previouse candle to current
+			//if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
+			//	  (secondFrameOnePreviouseCandle.IsFallingCandle || secondFrameCurrentCandle.OpenPrice < secondFrameOnePreviouseCandle.ClosePrice)))
+			//{
+			//	return conditionCheckingResult;
+			//}
 
 			var secondFrameWilliamsRValues = IndicatorComputingService.ComputeWilliamsR(
 					secondFrameCandles,

@@ -37,8 +37,12 @@ namespace StockManager.Dashboard
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();
 
+			Bind<CandleLoadingService>()
+				.ToSelf();
+
 			Bind<IMarketNewPositionAnalysisService>()
 				.To<TripleFrameRSIStrategyAnalysisService>();
+
 			Bind<ChartService>()
 				.ToSelf();
 

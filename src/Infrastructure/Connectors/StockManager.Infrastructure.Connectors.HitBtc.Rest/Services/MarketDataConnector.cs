@@ -109,5 +109,30 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 
 			return orderBookItems ?? new OrderBookItem[] { };
 		}
+
+		public async Task<IList<Infrastructure.Common.Models.Market.Ticker>> GetTickers()
+		{
+			var connection = new ApiConnection();
+			var request = new RestRequest("public/ticker", Method.GET);
+			request.Configure();
+			var response = await connection.DoRequest(request);
+			var tickers = response
+				.ExtractData<Ticker[]>()
+				.Select(entity => entity.ToOuterModel())
+				.ToList();
+			return tickers;
+		}
+
+		public async Task<Infrastructure.Common.Models.Market.Ticker> GetTicker(string currencyPairId)
+		{
+			var connection = new ApiConnection();
+			var request = new RestRequest(String.Format("public/ticker/{0}", currencyPairId), Method.GET);
+			request.Configure();
+			var response = await connection.DoRequest(request);
+			var ticker = response
+				.ExtractData<Ticker>()
+				?.ToOuterModel();
+			return ticker;
+		}
 	}
 }

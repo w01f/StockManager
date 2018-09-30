@@ -1,10 +1,11 @@
 ﻿using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using System.Threading.Tasks;
+using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition
 {
 	public interface IMarketNewPositionAnalysisService
 	{
-		Task<NewPositionInfo> ProcessMarketPosition();
+		Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair);
 	}
 }

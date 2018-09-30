@@ -13,6 +13,7 @@ namespace StockManager.Infrastructure.Data.SQLite
 
 		public DbSet<Candle> Candles { get; set; }
 		public DbSet<Order> Orders { get; set; }
+		public DbSet<TradingBallance> TradingBallance { get; set; }
 		public DbSet<OrderHistory> OrderHistory { get; set; }
 		public DbSet<LogAction> LogActions { get; set; }
 
@@ -34,6 +35,7 @@ namespace StockManager.Infrastructure.Data.SQLite
 			base.OnModelCreating(modelBuilder);
 			new CandleMap(modelBuilder.Entity<Candle>());
 			new OrderMap(modelBuilder.Entity<Order>());
+			new TradingBallanceMap(modelBuilder.Entity<TradingBallance>());
 			new OrderHistoryMap(modelBuilder.Entity<OrderHistory>());
 			new LogActionMap(modelBuilder.Entity<LogAction>());
 		}

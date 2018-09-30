@@ -1,6 +1,7 @@
 ﻿using System;
 using Newtonsoft.Json;
 using RestSharp;
+using StockManager.Infrastructure.Connectors.Common.Common;
 
 namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
 {
@@ -16,10 +17,17 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
 
 		public static TData ExtractData<TData>(this IRestResponse target)
 		{
-			var serializerSettings = new RestSerializeSettings();
-			return !String.IsNullOrEmpty(target.Content) ?
-				JsonConvert.DeserializeObject<TData>(target.Content, serializerSettings) :
-				default(TData);
+			try
+			{
+				var serializerSettings = new RestSerializeSettings();
+				return !String.IsNullOrEmpty(target.Content) ?
+					JsonConvert.DeserializeObject<TData>(target.Content, serializerSettings) :
+					default(TData);
+			}
+			catch (JsonException e)
+			{
+				throw new ParseResponceException(e, target?.Content);
+			}
 		}
 	}
 }

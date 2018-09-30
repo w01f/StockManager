@@ -2,6 +2,7 @@
 {
 	public enum IndicatorType
 	{
+		HighestMaxPrice,
 		EMA,
 		MACD,
 		Stochastic,

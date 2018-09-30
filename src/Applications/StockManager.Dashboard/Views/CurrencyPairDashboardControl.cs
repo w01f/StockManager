@@ -72,7 +72,8 @@ namespace StockManager.Dashboard.Views
 					new MACDSettings { CandlePeriod =chartSettings.Period,  EMAPeriod1 = 12, EMAPeriod2 = 26, SignalPeriod = 9},
 					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.RelativeStrengthIndex, Period = 14},
 					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.WilliamsR,Period = 5},
-					new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.ParabolicSAR}
+					//new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.HighestMaxPrice, Period = 14},
+					//new CommonIndicatorSettings {CandlePeriod =chartSettings.Period, Type = IndicatorType.ParabolicSAR}
 				});
 
 				ConfigureIndicatorCharts(chartSettings);
@@ -126,6 +127,12 @@ namespace StockManager.Dashboard.Views
 				foreach (var indicatorDataset in inputDataset.IndicatorData)
 					switch (indicatorDataset.Settings.Type)
 					{
+						case IndicatorType.HighestMaxPrice:
+							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
+								.Where(value => value.Moment == candle.Moment)
+								.Select(value => value.Value)
+								.FirstOrDefault());
+							break;
 						case IndicatorType.EMA:
 							rowValues.Add(indicatorDataset.Values.OfType<SimpleIndicatorValue>()
 								.Where(value => value.Moment == candle.Moment)

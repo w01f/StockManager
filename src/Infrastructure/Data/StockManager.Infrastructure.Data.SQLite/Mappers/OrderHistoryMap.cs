@@ -22,16 +22,12 @@ namespace StockManager.Infrastructure.Data.SQLite.Mappers
 			entityBuilder.Property(target => target.Created).IsRequired();
 			entityBuilder.HasIndex(target => new
 			{
-				target.ExtId
-			}).IsUnique().HasName("ByExtId");
-			entityBuilder.HasIndex(target => new
-			{
 				target.ClientId
-			}).IsUnique().HasName("ByClientId");
+			}).IsUnique().HasName("ByHistoryClientId");
 			entityBuilder.HasIndex(target => new
 			{
 				target.CurrencyPair,
-			}).HasName("CurrencyPair");
+			}).HasName("HistoryCurrencyPair");
 		}
 	}
 }

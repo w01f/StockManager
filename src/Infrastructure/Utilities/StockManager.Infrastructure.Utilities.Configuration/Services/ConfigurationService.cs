@@ -48,11 +48,13 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Services
 			if (_tradingSettings == null)
 				throw new ArgumentNullException("Trading settings are not initialized");
 
+			_tradingSettings.QuoteCurrencies = newSettings.QuoteCurrencies;
 			_tradingSettings.Period = newSettings.Period;
 			_tradingSettings.BaseOrderSide = newSettings.BaseOrderSide;
-			_tradingSettings.CurrencyPairId = newSettings.CurrencyPairId;
-			_tradingSettings.MaxOrderUsingBallancePart = newSettings.MaxOrderUsingBallancePart;
 			_tradingSettings.Moment = newSettings.Moment;
+
+			_tradingSettings.MinCurrencyPairTradingVolumeInBTC = newSettings.MinCurrencyPairTradingVolumeInBTC;
+			_tradingSettings.MaxOrderUsingBallancePart = newSettings.MaxOrderUsingBallancePart;
 			_tradingSettings.StopLimitPriceDifferneceFactor = newSettings.StopLimitPriceDifferneceFactor;
 		}
 

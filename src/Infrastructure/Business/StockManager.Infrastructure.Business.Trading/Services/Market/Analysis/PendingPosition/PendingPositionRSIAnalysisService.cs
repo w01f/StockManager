@@ -1,13 +1,9 @@
 ﻿using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Domain.Core.Entities.Market;
-using StockManager.Domain.Core.Repositories;
-using StockManager.Infrastructure.Business.Common.Helpers;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
@@ -15,16 +11,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 {
 	public class PendingPositionRSIAnalysisService : IMarketPendingPositionAnalysisService
 	{
-		private readonly IRepository<Candle> _candleRepository;
-		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly CandleLoadingService _candleLoadingService;
 		private readonly ConfigurationService _configurationService;
 
-		public PendingPositionRSIAnalysisService(IRepository<Candle> candleRepository,
-			IMarketDataConnector marketDataConnector,
+		public PendingPositionRSIAnalysisService(CandleLoadingService candleLoadingService,
 			ConfigurationService configurationService)
 		{
-			_candleRepository = candleRepository;
-			_marketDataConnector = marketDataConnector;
+			_candleLoadingService = candleLoadingService;
 			_configurationService = configurationService;
 		}
 
@@ -32,13 +25,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		{
 			var settings = _configurationService.GetTradingSettings();
 
-			var targetPeriodLastCandles = (await CandleLoader.Load(
-				settings.CurrencyPairId,
+			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+				activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
 				settings.Period,
 				2,
-				settings.Moment,
-				_candleRepository,
-				_marketDataConnector))
+				settings.Moment))
 				.ToList();
 
 			if (!targetPeriodLastCandles.Any())
@@ -49,13 +40,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return new CancelOrderInfo();
 
 			//TODO: Try to implement checking on low period based on RSI - open order if RSI signals on low period too
-			var lowerPeriodCandle = (await CandleLoader.Load(
-					settings.CurrencyPairId,
+			var lowerPeriodCandle = (await _candleLoadingService.LoadCandles(
+					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
 					1,
-					settings.Moment,
-					_candleRepository,
-					_marketDataConnector))
+					settings.Moment))
 				.FirstOrDefault();
 
 			if (lowerPeriodCandle == null)

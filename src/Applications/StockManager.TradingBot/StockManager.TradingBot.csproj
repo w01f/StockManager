@@ -5,7 +5,22 @@
     <StartupObject></StartupObject>
   </PropertyGroup>
   <ItemGroup>
+    <None Update="local_cache.db">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="Settings.job">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Settings\Analysis.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Settings\DatabaseConnection.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Settings\ExchangeConnection.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Settings\Trading.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
@@ -38,9 +53,9 @@
     <ProjectReference Include="..\..\Domain\StockManager.Domain.Core\StockManager.Domain.Core.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Analysis\StockManager.Infrastructure.Analysis.Common\StockManager.Infrastructure.Analysis.Common.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Analysis\StockManager.Infrastructure.Analysis.Trady\StockManager.Infrastructure.Analysis.Trady.csproj" />
-    <ProjectReference Include="..\..\Infrastructure\Business\StockManager.Infrastructure.Business.Common\StockManager.Infrastructure.Business.Common.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Business\StockManager.Infrastructure.Business.Trading\StockManager.Infrastructure.Business.Trading.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Fake\StockManager.Infrastructure.Connectors.Fake.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.HitBtc.Rest\StockManager.Infrastructure.Connectors.HitBtc.Rest.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Data\StockManager.Infrastructure.Data.SQLite\StockManager.Infrastructure.Data.SQLite.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj" />

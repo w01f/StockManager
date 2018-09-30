@@ -21,6 +21,15 @@ namespace StockManager.Dashboard.Models.Chart
 			{
 				switch (indicatorSetting.Type)
 				{
+					case IndicatorType.HighestMaxPrice:
+						viewSettings.Add(new IndicatorSeriesViewSettings
+						{
+							IndicatorType = IndicatorType.HighestMaxPrice,
+							CandlePeriod = indicatorSetting.CandlePeriod,
+							IndicatorValue = String.Format("{0}{1}", indicatorSetting.Type.ToString(), ((CommonIndicatorSettings)indicatorSetting).Period),
+							ViewType = ViewType.Point
+						});
+						break;
 					case IndicatorType.EMA:
 						viewSettings.Add(new IndicatorSeriesViewSettings
 						{

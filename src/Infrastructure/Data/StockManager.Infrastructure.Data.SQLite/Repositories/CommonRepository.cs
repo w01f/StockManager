@@ -56,12 +56,6 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 		{
 			if (entity == null)
 				throw new ArgumentNullException("Passed entity is null");
-		}
-
-		public virtual void Remove(TEntity entity)
-		{
-			if (entity == null)
-				throw new ArgumentNullException("Passed entity is null");
 			_entities.Remove(entity);
 			SaveChanges();
 		}
