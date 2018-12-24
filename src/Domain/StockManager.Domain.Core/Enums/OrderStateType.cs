@@ -2,6 +2,7 @@
 {
 	public enum OrderStateType
 	{
+		Pending,
 		Suspended,
 		New,
 		PartiallyFilled,

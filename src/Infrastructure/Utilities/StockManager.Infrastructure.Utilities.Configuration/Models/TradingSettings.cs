@@ -14,7 +14,8 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Models
 
 		public decimal MinCurrencyPairTradingVolumeInBTC { get; set; }
 		public decimal MaxOrderUsingBallancePart { get; set; }
-		public decimal StopLimitPriceDifferneceFactor { get; set; }
+		public decimal LimitOrderPriceDifferneceFactor { get; set; }
+		public decimal StopLossPriceDifferneceFactor { get; set; }
 
 		public OrderSide OppositeOrderSide => BaseOrderSide == OrderSide.Buy ? OrderSide.Sell : OrderSide.Buy;
 	}

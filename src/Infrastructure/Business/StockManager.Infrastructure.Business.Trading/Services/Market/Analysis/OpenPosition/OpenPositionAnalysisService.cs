@@ -44,12 +44,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				StopLossPrice = activeOrderPair.StopLossOrder.StopPrice ?? 0
 			};
 
-			var newPositionInfo = new UpdateClosePositionInfo
-			{
-				ClosePrice = activeOrderPair.ClosePositionOrder.Price,
-				CloseStopPrice = activeOrderPair.ClosePositionOrder.StopPrice ?? 0,
-				StopLossPrice = activeOrderPair.StopLossOrder.StopPrice ?? 0
-			};
+			OpenPositionInfo newPositionInfo = null;
 
 			var williamsRSettings = new CommonIndicatorSettings
 			{
@@ -84,14 +79,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				throw new NoNullAllowedException("No candles loaded");
 			var currentLowPeriodCandle = lowerPeriodCandles.Last();
 
-			if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
+				activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
 			{
 				if (currentTargetPeriodCandle.Moment == currentLowPeriodCandle.Moment)
 				{
-					ComputeStopLossUsingParabolicSAR(
-						activeOrderPair.StopLossOrder,
-						currentTargetPeriodCandle);
-
 					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
 							targetPeriodLastCandles,
 							williamsRSettings.Period)
@@ -107,44 +99,41 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					if (currentWilliamsRValue.Value <= 10)
 					{
-						newPositionInfo.CloseStopPrice = new[]
+						var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+
+						updatePositionInfo.CloseStopPrice = new[]
 						{
 							currentTargetPeriodCandle.MinPrice,
 							activeOrderPair.ClosePositionOrder.StopPrice ?? 0,
-							newPositionInfo.StopLossPrice + activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor
 						}.Max();
-						newPositionInfo.ClosePrice = newPositionInfo.CloseStopPrice + activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
-					}
-				}
-				else
-				{
-					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
-							lowerPeriodCandles,
-							williamsRSettings.Period)
-						.OfType<SimpleIndicatorValue>()
-						.ToList();
-
-					var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
-
-					if (currentWilliamsRValue?.Value == null)
-					{
-						throw new NoNullAllowedException("No WilliamR values calculated");
-					}
-
-					if (currentWilliamsRValue.Value <= 10)
-					{
-						newPositionInfo.CloseStopPrice = new[]
+						updatePositionInfo.ClosePrice = new[]
 						{
-							currentLowPeriodCandle.MinPrice,
-							activeOrderPair.ClosePositionOrder.StopPrice ?? 0
-						}.Max();
-						newPositionInfo.ClosePrice = newPositionInfo.CloseStopPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
+							updatePositionInfo.CloseStopPrice + activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize * settings.LimitOrderPriceDifferneceFactor,
+							currentTargetPeriodCandle.MaxPrice
+						}.Min();
+
+						if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
+							updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice ||
+							updatePositionInfo.CloseStopPrice != initialPositionInfo.CloseStopPrice)
+							newPositionInfo = updatePositionInfo;
 					}
 				}
+
+				var fixStopLossInfo = newPositionInfo != null ? (FixStopLossInfo)newPositionInfo : new FixStopLossInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+				ComputeStopLossUsingParabolicSAR(
+					fixStopLossInfo,
+					activeOrderPair.StopLossOrder,
+					currentTargetPeriodCandle);
+
+				if (newPositionInfo == null
+					&& fixStopLossInfo.StopLossPrice != initialPositionInfo.StopLossPrice)
+					newPositionInfo = fixStopLossInfo;
 			}
-			else
+			else if (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending)
 			{
-				newPositionInfo.CloseStopPrice = 0;
+				var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+
+				updatePositionInfo.CloseStopPrice = 0;
 
 				var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
 					.Where(item => item.Type == OrderBookItemType.Ask)
@@ -167,22 +156,26 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					.Select(item => item.Price)
 					.First();
 
-				newPositionInfo.ClosePrice = new[]
+				updatePositionInfo.ClosePrice = new[]
 				{
-					nearestAskSupportPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize,
+					activeOrderPair.OpenPositionOrder.Price<activeOrderPair.ClosePositionOrder.Price?
+						new[]{nearestAskSupportPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize,activeOrderPair.OpenPositionOrder.Price}.Max():
+						nearestAskSupportPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize,
 					activeOrderPair.ClosePositionOrder.Price
 				}.Min();
+
+				if (updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice)
+					newPositionInfo = updatePositionInfo;
 			}
 
-			if (initialPositionInfo.CloseStopPrice == newPositionInfo.CloseStopPrice &&
-			   initialPositionInfo.ClosePrice == newPositionInfo.ClosePrice &&
-			   initialPositionInfo.StopLossPrice == newPositionInfo.StopLossPrice)
+			if (newPositionInfo == null)
 				return new HoldPositionInfo();
 
 			return newPositionInfo;
 		}
 
 		private void ComputeStopLossUsingParabolicSAR(
+			FixStopLossInfo positionInfo,
 			Order stopLossOrder,
 			Common.Models.Market.Candle currentCandle)
 		{
@@ -206,8 +199,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						stopLossInfo.TrailingStopAccelerationFactor += settings.ParabolicSARBaseAccelerationFactror;
 				}
 
-				stopLossOrder.StopPrice = stopLossOrder.StopPrice +
-					stopLossInfo.TrailingStopAccelerationFactor * (stopLossInfo.LastMaxValue - stopLossOrder.StopPrice);
+				positionInfo.StopLossPrice = (stopLossOrder.StopPrice +
+					stopLossInfo.TrailingStopAccelerationFactor * (stopLossInfo.LastMaxValue - stopLossOrder.StopPrice)) ?? 0;
 			}
 		}
 	}

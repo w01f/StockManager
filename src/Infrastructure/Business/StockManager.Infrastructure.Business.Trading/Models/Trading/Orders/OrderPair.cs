@@ -23,16 +23,30 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Orders
 
 			OpenPositionOrder.Price = marketInfo.OpenPrice;
 			if (OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
+			{
 				OpenPositionOrder.StopPrice = marketInfo.OpenStopPrice;
+				OpenPositionOrder.OrderType = OrderType.StopLimit;
+			}
 			else
+			{
 				OpenPositionOrder.StopPrice = null;
+				OpenPositionOrder.OrderType = OrderType.Limit;
+			}
+
 			OpenPositionOrder.Updated = now;
 
 			ClosePositionOrder.Price = marketInfo.ClosePrice;
-			if (ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			if (ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
+				ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			{
 				ClosePositionOrder.StopPrice = marketInfo.CloseStopPrice;
+				ClosePositionOrder.OrderType = OrderType.StopLimit;
+			}
 			else
+			{
 				ClosePositionOrder.StopPrice = null;
+				ClosePositionOrder.OrderType = OrderType.Limit;
+			}
 			ClosePositionOrder.Updated = now;
 
 			StopLossOrder.Price = 0;
@@ -45,11 +59,28 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Orders
 			var now = DateTime.UtcNow;
 
 			ClosePositionOrder.Price = marketInfo.ClosePrice;
-			if (ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			if (ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
+				ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			{
+				ClosePositionOrder.OrderStateType = OrderStateType.Suspended;
 				ClosePositionOrder.StopPrice = marketInfo.CloseStopPrice;
+				ClosePositionOrder.OrderType = OrderType.StopLimit;
+			}
 			else
+			{
 				ClosePositionOrder.StopPrice = null;
+				ClosePositionOrder.OrderType = OrderType.Limit;
+			}
 			ClosePositionOrder.Updated = now;
+
+			StopLossOrder.Price = 0;
+			StopLossOrder.StopPrice = marketInfo.StopLossPrice;
+			StopLossOrder.Updated = now;
+		}
+
+		public void ApplyOrderChanges(FixStopLossInfo marketInfo)
+		{
+			var now = DateTime.UtcNow;
 
 			StopLossOrder.Price = 0;
 			StopLossOrder.StopPrice = marketInfo.StopLossPrice;

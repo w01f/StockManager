@@ -123,6 +123,9 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 					case OrderStateType.Filled:
 						var closePositionOrderEntity =
 							storedOrders.Single(orderEntity => orderEntity.Role == OrderRoleType.ClosePosition && orderEntity.ParentClientId == openPositionOrderEntity.ClientId);
+
+						var processStopOrders = true;
+
 						switch (closePositionOrderEntity.OrderStateType)
 						{
 							case OrderStateType.Suspended:
@@ -140,6 +143,8 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 									_orderRepository.Update(closePositionOrderEntity);
 
 									_tradingBallanceRepository.Update(tradingBallanceBaseCurrencyEntity);
+
+									processStopOrders = false;
 								}
 								break;
 							case OrderStateType.New:
@@ -156,11 +161,13 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 
 									_tradingBallanceRepository.Update(tradingBallanceQuoteCurrencyEntity);
 									_tradingBallanceRepository.Update(tradingBallanceBaseCurrencyEntity);
+
+									processStopOrders = false;
 								}
 								break;
 						}
 
-						if (closePositionOrderEntity.OrderStateType != OrderStateType.Filled)
+						if (processStopOrders)
 						{
 							var stopLossOrderEntity =
 								storedOrders.Single(orderEntity => orderEntity.Role == OrderRoleType.StopLoss && orderEntity.ParentClientId == openPositionOrderEntity.ClientId);
@@ -206,7 +213,7 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 			});
 		}
 
-		public async Task<Order> CreateOrder(Order initialOrder)
+		public async Task<Order> CreateOrder(Order initialOrder, bool usePostOnly = false)
 		{
 			if (initialOrder.OrderStateType == OrderStateType.New && initialOrder.OrderType == OrderType.Limit)
 			{
@@ -220,11 +227,15 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 					throw new ConnectorException(String.Format("Ballance is unavailable for {0}", currencyId));
 
 				if (initialOrder.Role == OrderRoleType.OpenPosition)
+				{
 					tradingBallanceEntity.Reserved = initialOrder.Price * initialOrder.Quantity;
-				else
+					tradingBallanceEntity.Available -= initialOrder.Price * initialOrder.Quantity;
+				}
+				if (initialOrder.Role == OrderRoleType.ClosePosition)
+				{
 					tradingBallanceEntity.Reserved = initialOrder.Quantity;
-
-				tradingBallanceEntity.Available -= tradingBallanceEntity.Reserved;
+					tradingBallanceEntity.Available -= initialOrder.Quantity;
+				}
 				_tradingBallanceRepository.Update(tradingBallanceEntity);
 			}
 			return await Task.Run(() => initialOrder);
@@ -244,8 +255,11 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 			if (tradingBallanceEntity == null)
 				throw new ConnectorException(String.Format("Ballance for currency {0} not found", currencyId));
 
-			tradingBallanceEntity.Available += tradingBallanceEntity.Reserved;
-			tradingBallanceEntity.Reserved = 0;
+			if (initialOrder.Role != OrderRoleType.StopLoss)
+			{
+				tradingBallanceEntity.Available += tradingBallanceEntity.Reserved;
+				tradingBallanceEntity.Reserved = 0m;
+			}
 
 			_tradingBallanceRepository.Update(tradingBallanceEntity);
 

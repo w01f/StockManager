@@ -8,9 +8,12 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 	{
 		public static void CalculateBuyOrderQuantity(this Order order, TradingBallance tradingBallance, TradingSettings settings)
 		{
-			order.Quantity = Math.Floor((tradingBallance.Available * settings.MaxOrderUsingBallancePart / order.Price) / order.CurrencyPair.QuantityIncrement) * order.CurrencyPair.QuantityIncrement;
-			if (order.Quantity == 0)
-				order.Quantity = order.CurrencyPair.QuantityIncrement;
+			order.Quantity = Math.Floor((tradingBallance.Available * (1 - order.CurrencyPair.TakeLiquidityRate) * settings.MaxOrderUsingBallancePart / order.Price) / order.CurrencyPair.QuantityIncrement) * order.CurrencyPair.QuantityIncrement;
+		}
+
+		public static void CalculateSellOrderQuantity(this Order order, TradingBallance tradingBallance, TradingSettings settings)
+		{
+			order.Quantity = Math.Floor(tradingBallance.Available * (1 - order.CurrencyPair.TakeLiquidityRate) / order.CurrencyPair.QuantityIncrement) * order.CurrencyPair.QuantityIncrement;
 		}
 	}
 }

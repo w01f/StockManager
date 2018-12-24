@@ -11,6 +11,7 @@ namespace StockManager.Infrastructure.Utilities.Logging.Models.Orders
 			action.OrderActionType = actionType;
 
 			action.ClinetId = source.ClientId;
+			action.ParentClientId = source.ParentClientId;
 			action.CurrencyPair = source.CurrencyPair.Id;
 			action.Role = source.Role;
 			action.OrderSide = source.OrderSide;

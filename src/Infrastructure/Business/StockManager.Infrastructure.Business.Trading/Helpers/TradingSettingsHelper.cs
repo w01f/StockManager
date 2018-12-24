@@ -1,5 +1,4 @@
 ﻿using StockManager.Domain.Core.Enums;
-using StockManager.Infrastructure.Utilities.Configuration.Models;
 
 namespace StockManager.Infrastructure.Business.Trading.Helpers
 {

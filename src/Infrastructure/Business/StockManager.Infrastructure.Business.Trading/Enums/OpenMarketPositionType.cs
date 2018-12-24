@@ -3,6 +3,7 @@
 	public enum OpenMarketPositionType
 	{
 		Hold,
+		UpdateOrder,
 		FixStopLoss
 	}
 }

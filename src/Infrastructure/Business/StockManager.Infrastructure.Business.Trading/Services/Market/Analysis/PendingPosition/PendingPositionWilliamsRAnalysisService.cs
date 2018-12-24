@@ -39,7 +39,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var williamsRSettings = new CommonIndicatorSettings
 			{
-				Period = 5
+				Period = 14
 			};
 
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
@@ -73,14 +73,18 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					.OfType<SimpleIndicatorValue>()
 					.ToList();
 
+				var rangeFromLastPeak = williamsRValues
+					.Where(value => value != null)
+					.Skip(williamsRValues.Count - WilliamsRSettings.MaxRangeFromLatestOppositePeak)
+					.ToList();
 				var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 
 				if (currentWilliamsRValue?.Value == null)
-				{
 					throw new NoNullAllowedException("No WilliamR values calculated");
-				}
 
-				if (currentWilliamsRValue.Value >= 90)
+				if (currentWilliamsRValue.Value >= 90 &&
+					rangeFromLastPeak.Any(value => value.Value < 90) &&
+					rangeFromLastPeak.Max(value => value.Value) >= WilliamsRSettings.MinHighPeakValue)
 				{
 					decimal stopOpenPrice;
 					decimal openPrice;
@@ -88,10 +92,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					{
 						stopOpenPrice = new[]
 						{
-							currentTargetCandle.MaxPrice,
-							activeOrderPair.OpenPositionOrder.StopPrice ?? 0
-						}.Min();
-						openPrice = stopOpenPrice - activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
+								currentTargetCandle.MaxPrice,
+								activeOrderPair.OpenPositionOrder.StopPrice ?? 0
+							}.Min();
+						openPrice = stopOpenPrice - activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.LimitOrderPriceDifferneceFactor;
 					}
 					else
 					{
@@ -100,9 +104,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						var nearestBidSupportPrice = await GetNearestBidSupportPrice(activeOrderPair.OpenPositionOrder.CurrencyPair);
 						openPrice = new[]
 						{
-							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
-							activeOrderPair.OpenPositionOrder.Price
-						}.Max();
+								nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
+								activeOrderPair.OpenPositionOrder.Price
+							}.Max();
 					}
 
 					return new UpdateOrderInfo
@@ -113,51 +117,26 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						ClosePrice = new[] { currentTargetCandle.MaxPrice, activeOrderPair.ClosePositionOrder.Price }.Max(),
 						CloseStopPrice = new[] { currentTargetCandle.MinPrice, activeOrderPair.ClosePositionOrder.StopPrice ?? 0 }.Min(),
 
-						StopLossPrice = new[] { currentTargetCandle.MinPrice - -activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor, activeOrderPair.StopLossOrder.StopPrice ?? 0 }.Min()
+						StopLossPrice = new[]
+						{
+							currentTargetCandle.MinPrice - new[]{activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentTargetCandle.MaxPrice-currentTargetCandle.MinPrice}.Max(),
+							activeOrderPair.StopLossOrder.StopPrice ?? 0
+						}.Min()
 					};
 				}
 				return new CancelOrderInfo();
 			}
-			else
+			else if (activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)
 			{
-				var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
-						lowerPeriodCandles,
-						williamsRSettings.Period)
-					.OfType<SimpleIndicatorValue>()
-					.ToList();
-
-				var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
-
-				if (currentWilliamsRValue == null)
+				decimal stopOpenPrice = 0;
+				var nearestBidSupportPrice = await GetNearestBidSupportPrice(activeOrderPair.OpenPositionOrder.CurrencyPair);
+				var openPrice = new[]
 				{
-					throw new NoNullAllowedException("No WilliamR values calculated");
-				}
+					nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
+					activeOrderPair.OpenPositionOrder.Price
+				}.Max();
 
-				if (currentWilliamsRValue.Value >= 90)
-				{
-					decimal stopOpenPrice;
-					decimal openPrice;
-					if (activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
-					{
-						stopOpenPrice = new[]
-						{
-							currentLowPeriodCandle.MaxPrice,
-							activeOrderPair.OpenPositionOrder.StopPrice ?? 0
-						}.Min();
-						openPrice = stopOpenPrice - activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
-					}
-					else
-					{
-						stopOpenPrice = 0;
-
-						var nearestBidSupportPrice = await GetNearestBidSupportPrice(activeOrderPair.OpenPositionOrder.CurrencyPair);
-						openPrice = new[]
-						{
-							nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
-							activeOrderPair.OpenPositionOrder.Price
-						}.Max();
-					}
-
+				if (activeOrderPair.OpenPositionOrder.Price != openPrice)
 					return new UpdateOrderInfo
 					{
 						OpenPrice = openPrice,
@@ -166,17 +145,18 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						ClosePrice = new[] { currentLowPeriodCandle.MaxPrice, activeOrderPair.ClosePositionOrder.Price }.Max(),
 						CloseStopPrice = new[] { currentLowPeriodCandle.MinPrice, activeOrderPair.ClosePositionOrder.StopPrice ?? 0 }.Min(),
 
-						StopLossPrice = new[] { currentLowPeriodCandle.MinPrice - activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLimitPriceDifferneceFactor, activeOrderPair.StopLossOrder.StopPrice ?? 0 }.Min()
+						StopLossPrice = new[]
+						{
+							currentLowPeriodCandle.MinPrice - new[]{activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentLowPeriodCandle.MaxPrice-currentLowPeriodCandle.MinPrice}.Max(),
+							activeOrderPair.StopLossOrder.StopPrice ?? 0
+						}.Min()
 					};
-				}
-				return new PendingOrderInfo();
 			}
+			return new PendingOrderInfo();
 		}
 
 		private async Task<decimal> GetNearestBidSupportPrice(CurrencyPair currencyPair)
 		{
-			var settings = _configurationService.GetTradingSettings();
-
 			var orderBookBidItems = (await _marketDataConnector.GetOrderBook(currencyPair.Id, 20))
 				.Where(item => item.Type == OrderBookItemType.Bid)
 				.ToList();

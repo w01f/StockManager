@@ -48,7 +48,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					var currentCandle = candles.Last();
 
-					buyPositionInfo.OpenPrice = currentCandle.MaxPrice - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
+					buyPositionInfo.OpenPrice = new[]
+					{
+						currentCandle.MaxPrice - currencyPair.TickSize * settings.LimitOrderPriceDifferneceFactor,
+						currentCandle.MinPrice
+					}.Max();
 					buyPositionInfo.OpenStopPrice = currentCandle.MaxPrice;
 
 					var lastPeakValue = IndicatorComputingService.ComputeHighestMaxPrices(
@@ -60,7 +64,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					buyPositionInfo.ClosePrice =
 					buyPositionInfo.CloseStopPrice = lastPeakValue?.Value ?? candles.Max(candle => candle.MaxPrice);
 
-					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice) - currencyPair.TickSize * settings.StopLimitPriceDifferneceFactor;
+					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice) -
+													new[] { currencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentCandle.MaxPrice - currentCandle.MinPrice }.Max();
 
 					newPositionInfo = buyPositionInfo;
 					break;
@@ -117,9 +122,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return conditionCheckingResult;
 			}
 
-			var secondFrameWilliamsRSettings = new CommonIndicatorSettings
+			var secondFrameWilliamsRSettings = new WilliamsRSettings
 			{
-				Period = 5
+				Period = 14 + WilliamsRSettings.MaxRangeFromLatestOppositePeak
 			};
 
 			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
@@ -129,10 +134,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				settings.Moment)).ToList();
 
 			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
-			var secondFrameOnePreviouseCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
+			var secondFrameOnePreviousCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
 
 			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null ||
-				secondFrameOnePreviouseCandle?.VolumeInBaseCurrency == null)
+				secondFrameOnePreviousCandle?.VolumeInBaseCurrency == null)
 			{
 				return conditionCheckingResult;
 			}
@@ -151,6 +156,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
+			var secondFrameRangeFromLastPeak = secondFrameWilliamsRValues
+				.Where(value => value != null)
+				.Skip(secondFrameWilliamsRValues.Count - WilliamsRSettings.MaxRangeFromLatestOppositePeak)
+				.ToList();
 			var secondFrameCurrentWilliamsRValue = secondFrameWilliamsRValues.ElementAtOrDefault(secondFrameWilliamsRValues.Count - 1);
 
 			if (secondFrameCurrentWilliamsRValue?.Value == null)
@@ -159,6 +168,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			}
 
 			if (secondFrameCurrentWilliamsRValue.Value < 90)
+			{
+				return conditionCheckingResult;
+			}
+
+			if (secondFrameRangeFromLastPeak.All(value => value.Value >= 90))
+			{
+				return conditionCheckingResult;
+			}
+
+			if (secondFrameRangeFromLastPeak.Max(value => value.Value) < WilliamsRSettings.MinHighPeakValue)
 			{
 				return conditionCheckingResult;
 			}

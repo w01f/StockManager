@@ -1,4 +1,5 @@
 {
 	"MaxOrderUsingBallancePart": 1,
-	"StopLimitPriceDifferneceFactor": 10
+	"OpenPriceDifferneceFactor": 5.0,
+	"ClosePriceDifferneceFactor": 10.0
 }

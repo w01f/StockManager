@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using RestSharp;
@@ -26,7 +27,11 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
 				throw new ConnectorException("Error retrieving response.  Check inner details for more info.", response.ErrorException);
 
 			var error = response.ExtractData<ApiError>();
-			throw new ConnectorException(String.Format("{0}. {1}", error.Data.Message, error.Data.Description), response.ErrorException);
+			throw new ConnectorException(String.Format("{0}. {1}{3}{2}", 
+				error.Data.Message, 
+				error.Data.Description,
+				String.Join(Environment.NewLine,request.Parameters.Select(p=> $"{p.Name}: {p.Value}").ToList()),
+				Environment.NewLine), response.ErrorException);
 		}
 	}
 }

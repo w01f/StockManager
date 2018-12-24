@@ -98,6 +98,8 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 			target.Created = source.Created;
 			target.Updated = source.Updated;
 
+			target.PostOnly = false;
+
 			return target;
 		}
 

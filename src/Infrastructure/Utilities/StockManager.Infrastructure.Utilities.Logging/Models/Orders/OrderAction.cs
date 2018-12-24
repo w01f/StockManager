@@ -9,6 +9,7 @@ namespace StockManager.Infrastructure.Utilities.Logging.Models.Orders
 		public override LogActionType LogActionType => LogActionType.OrderAction;
 		public OrderActionType OrderActionType { get; set; }
 		public Guid ClinetId { get; set; }
+		public Guid ParentClientId { get; set; }
 		public string CurrencyPair { get; set; }
 		public OrderRoleType Role { get; set; }
 		public OrderSide OrderSide { get; set; }

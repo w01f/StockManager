@@ -28,29 +28,29 @@ namespace StockManager.SandBox
 
 		private async void OnRunTestClick(object sender, EventArgs e)
 		{
-			var currencyPair = (await _marketDataConnector.GetCurrensyPairs()).FirstOrDefault(item => item.Id == "LTCUSD");
+			var currencyPair = (await _marketDataConnector.GetCurrensyPairs()).FirstOrDefault(item => item.Id == "DASHBTC");
 
 			var orderId = Guid.NewGuid();
 
-			var initaolOrder = new Infrastructure.Common.Models.Trading.Order
+			var initialOrder = new Infrastructure.Common.Models.Trading.Order
 			{
 				CurrencyPair = currencyPair,
 				ClientId = orderId,
 				Role = OrderRoleType.ClosePosition,
 				OrderSide = OrderSide.Sell,
-				OrderType = OrderType.StopLimit,
+				OrderType = OrderType.Limit,
 				OrderStateType = OrderStateType.Suspended,
 				TimeInForce = OrderTimeInForceType.GoodTillCancelled,
-				Quantity = 0.5m,
-				Price = 54.5m,
-				StopPrice = 55
+				Quantity = 0.001m,
+				Price = 0.022m,
+				StopPrice = 0
 			};
 
-			var newOrder = await _tradingDataConnector.CreateOrder(initaolOrder);
+			var newOrder = await _tradingDataConnector.CreateOrder(initialOrder, true);
 
 			var cancelledOrder = await _tradingDataConnector.CancelOrder(newOrder);
 
-			var testOrder = await _tradingDataConnector.GetOrderFromHistory(initaolOrder.ClientId, currencyPair);
+			var testOrder = await _tradingDataConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
 
 			MessageBox.Show("Passed");
 		}

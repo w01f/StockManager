@@ -85,7 +85,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			return order;
 		}
 
-		public async Task<Infrastructure.Common.Models.Trading.Order> CreateOrder(Infrastructure.Common.Models.Trading.Order initialOrder)
+		public async Task<Infrastructure.Common.Models.Trading.Order> CreateOrder(Infrastructure.Common.Models.Trading.Order initialOrder, bool usePostOnly = false)
 		{
 			var innerModel = initialOrder.ToInnerModel();
 
@@ -100,9 +100,10 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 				side = innerModel.OrderSide,
 				type = innerModel.OrderType,
 				timeInForce = innerModel.TimeInForce,
-				quantity = innerModel.Quantity.ToString("#0.######"),
-				price = innerModel.Price.ToString("#0.######"),
-				stopPrice = innerModel.StopPrice.ToString("#0.######"),
+				quantity = innerModel.Quantity.ToString("#0.########################"),
+				price = innerModel.Price.ToString("#0.########################"),
+				stopPrice = innerModel.StopPrice.ToString("#0.########################"),
+				postOnly = usePostOnly
 			});
 
 			var exchangeConnectionSettings = _configurationService.GetExchangeConnectionSettings();

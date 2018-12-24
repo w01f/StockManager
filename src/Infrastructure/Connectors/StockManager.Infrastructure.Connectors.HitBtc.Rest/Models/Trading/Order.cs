@@ -44,6 +44,9 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
 		[JsonProperty(PropertyName = "stopPrice")]
 		public decimal StopPrice { get; set; }
 
+		[JsonProperty(PropertyName = "postOnly")]
+		public bool PostOnly { get; set; }
+
 		[JsonProperty(PropertyName = "expireTime")]
 		public DateTime ExpireTime { get; set; }
 	}

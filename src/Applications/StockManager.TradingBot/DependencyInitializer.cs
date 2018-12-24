@@ -37,7 +37,7 @@ namespace StockManager.TradingBot
 			Bind<IMarketDataConnector>()
 				.To<MarketDataConnector>();
 			Bind<ITradingDataConnector>()
-				.To<FakeTradingConnector>();
+				.To<TradingDataConnector>();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();

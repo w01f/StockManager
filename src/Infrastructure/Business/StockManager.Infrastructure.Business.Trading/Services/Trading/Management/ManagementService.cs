@@ -64,9 +64,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 						if (activeOrderPair.IsOpenPosition)
 						{
 							var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(activeOrderPair);
-							if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
+							if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
 							{
 								activeOrderPair.ApplyOrderChanges((UpdateClosePositionInfo)marketInfo);
+								await _orderService.UpdatePosition(activeOrderPair);
+							}
+							else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
+							{
+								activeOrderPair.ApplyOrderChanges((FixStopLossInfo)marketInfo);
 								await _orderService.UpdatePosition(activeOrderPair);
 							}
 						}
@@ -146,8 +151,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 					foreach (var currencyPair in baseCurrencyPairs.Where(currencyPairItem => tradingTickers.Any(tickerItem =>
 						String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id, StringComparison.OrdinalIgnoreCase))).ToList())
 					{
-						var tradingBallance = await _tradingDataConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
-						if (tradingBallance?.Available <= 0)
+						var tradingBalance = await _tradingDataConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
+						if (tradingBalance?.Available <= 0)
 							continue;
 
 						var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
