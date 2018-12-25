@@ -197,5 +197,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 				throw;
 			}
 		}
+
+		public void TrackEvent(string message)
+		{
+			throw new NotImplementedException();
+		}
 	}
 }

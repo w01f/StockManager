@@ -4,8 +4,9 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
+using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
-using StockManager.Infrastructure.Utilities.Configuration.Models;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.TradingBot
@@ -19,6 +20,9 @@ namespace StockManager.TradingBot
 			CompositionRoot.Initialize(new DependencyInitializer());
 
 			var configurationService = CompositionRoot.Resolve<ConfigurationService>();
+			
+			var tradingEventsObserver = CompositionRoot.Resolve<TradingEventsObserver>();
+			tradingEventsObserver.PositionChanged += OnTradingEventsObserverPositionChanged;
 
 			CompositionRoot.Resolve<ConfigurationService>()
 				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "Settings"));
@@ -56,8 +60,10 @@ namespace StockManager.TradingBot
 					}
 					catch (Exception exception)
 					{
+						Console.ForegroundColor = ConsoleColor.Red;
 						Console.WriteLine("Iteration failed");
 						Console.WriteLine(exception);
+						Console.ForegroundColor = ConsoleColor.White;
 					}
 				}).GetAwaiter().GetResult();
 			},
@@ -67,6 +73,30 @@ namespace StockManager.TradingBot
 
 			Console.ReadLine();
 			return result;
+		}
+
+		private static void OnTradingEventsObserverPositionChanged(object sender, TradingEventsObserver.PositionChangedEventArgs e)
+		{
+			switch (e.EventType)
+			{
+				case TradingEventType.NewPosition:
+					Console.ForegroundColor = ConsoleColor.Blue;
+					Console.WriteLine("New Position Created");
+					break;
+				case TradingEventType.PositionOpened:
+					Console.ForegroundColor = ConsoleColor.Yellow;
+					Console.WriteLine("Position Opened");
+					break;
+				case TradingEventType.PositionClosedSuccessfully:
+					Console.ForegroundColor = ConsoleColor.Green;
+					Console.WriteLine("Position Closed Successfully");
+					break;
+				case TradingEventType.PositionClosedDueStopLoss:
+					Console.ForegroundColor = ConsoleColor.Red;
+					Console.WriteLine("Position Closed Due StopLoss");
+					break;
+			}
+			Console.ForegroundColor = ConsoleColor.White;
 		}
 	}
 }

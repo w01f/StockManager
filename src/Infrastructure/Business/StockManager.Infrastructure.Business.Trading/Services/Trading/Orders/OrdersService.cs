@@ -19,6 +19,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
+using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
@@ -31,13 +33,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		private readonly ITradingDataConnector _tradingDataConnector;
 		private readonly ConfigurationService _configurationService;
 		private readonly ILoggingService _loggingService;
+		private readonly TradingEventsObserver _tradingEventsObserver;
 
 		public OrdersService(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
 			IRepository<OrderHistory> orderHistoryRepository,
 			IMarketDataConnector marketDataConnector,
 			ITradingDataConnector tradingDataConnector,
 			ConfigurationService configurationService,
-			ILoggingService loggingService)
+			ILoggingService loggingService,
+			TradingEventsObserver tradingEventsObserver)
 		{
 			_orderRepository = orderRepository;
 			_orderHistoryRepository = orderHistoryRepository;
@@ -45,6 +49,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			_tradingDataConnector = tradingDataConnector;
 			_configurationService = configurationService;
 			_loggingService = loggingService;
+			_tradingEventsObserver = tradingEventsObserver;
 		}
 
 		public async Task SyncOrders()
@@ -92,6 +97,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						case OrderStateType.Filled:
 							_orderRepository.Update(openPositionOrder.ToEntity(storedOrderEntity.Item1));
 							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Fill));
+
+							_tradingEventsObserver.RaisePositionChanged(TradingEventType.PositionOpened);
 							break;
 						case OrderStateType.Cancelled:
 							var closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
@@ -150,6 +157,27 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item2.ClientId) ??
 															await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item2.ClientId, currencyPair);
 
+						if (serverSideClosePositionOrder == null)
+						{
+							var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(closePositionOrder.CurrencyPair.BaseCurrencyId);
+							if (baseTradingBalance?.Available <= 0)
+								throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", closePositionOrder.CurrencyPair.Id));
+							do
+							{
+								if (serverSideClosePositionOrder != null)
+								{
+									var nearestAskSupportPrice = await GetNearestAskSupportPrice(closePositionOrder.CurrencyPair);
+									closePositionOrder.Price = nearestAskSupportPrice - closePositionOrder.CurrencyPair.TickSize;
+								}
+
+								closePositionOrder.CalculateSellOrderQuantity(baseTradingBalance, tradingSettings);
+								if (closePositionOrder.Quantity == 0)
+									throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", closePositionOrder.CurrencyPair.Id));
+
+								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder, true);
+							} while (serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
+						}
+
 						SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
 
 						if (closePositionOrder.OrderStateType == OrderStateType.Filled &&
@@ -181,7 +209,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 								SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
 							}
 
-							var immediateCloseOrder = new Common.Models.Trading.Order();
+							var immediateCloseOrder = new Infrastructure.Common.Models.Trading.Order();
 							immediateCloseOrder.ClientId = Guid.NewGuid();
 							immediateCloseOrder.CurrencyPair = currencyPair;
 							immediateCloseOrder.Role = OrderRoleType.ClosePosition;
@@ -241,6 +269,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.History));
 							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.History));
 							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.History));
+
+							_tradingEventsObserver.RaisePositionChanged(TradingEventType.PositionClosedSuccessfully);
 							break;
 						case OrderStateType.Cancelled:
 							if (stopLossOrder.OrderStateType != OrderStateType.Filled && stopLossOrder.OrderStateType != OrderStateType.Cancelled)
@@ -264,6 +294,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.History));
 							_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.History));
 							_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.History));
+
+							_tradingEventsObserver.RaisePositionChanged(TradingEventType.PositionClosedDueStopLoss);
 							break;
 						default:
 							throw new BusinessException("Unexpected order state found")
@@ -305,7 +337,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			var now = DateTime.UtcNow;
 
-			var openPositionOrder = new Common.Models.Trading.Order();
+			var openPositionOrder = new Infrastructure.Common.Models.Trading.Order();
 			openPositionOrder.ClientId = Guid.NewGuid();
 			openPositionOrder.CurrencyPair = currencyPair;
 			openPositionOrder.Role = OrderRoleType.OpenPosition;
@@ -318,7 +350,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			openPositionOrder.Created = now;
 			openPositionOrder.Updated = now;
 
-			var closePositionOrder = new Common.Models.Trading.Order();
+			var closePositionOrder = new Infrastructure.Common.Models.Trading.Order();
 			closePositionOrder.ClientId = Guid.NewGuid();
 			closePositionOrder.ParentClientId = openPositionOrder.ClientId;
 			closePositionOrder.CurrencyPair = currencyPair;
@@ -332,7 +364,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			closePositionOrder.Created = now;
 			closePositionOrder.Updated = now;
 
-			var stopLossOrder = new Common.Models.Trading.Order();
+			var stopLossOrder = new Infrastructure.Common.Models.Trading.Order();
 			stopLossOrder.ClientId = Guid.NewGuid();
 			stopLossOrder.ParentClientId = openPositionOrder.ClientId;
 			stopLossOrder.CurrencyPair = currencyPair;
@@ -365,6 +397,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Create));
 			_loggingService.LogAction(closePositionOrder.ToLogAction(OrderActionType.Create));
 			_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Create));
+
+			_tradingEventsObserver.RaisePositionChanged(TradingEventType.NewPosition);
 		}
 
 		public async Task UpdatePosition(OrderPair orderPair)
@@ -413,6 +447,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				}
 				else
 				{
+					if (orderPair.OpenPositionOrder.StopPrice == null)
+						throw new BusinessException("Unexpected order state found")
+						{
+							Details = String.Format("Open position order: {0}", JsonConvert.SerializeObject(orderPair.OpenPositionOrder))
+						};
+
 					orderPair.OpenPositionOrder.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
 					if (orderPair.OpenPositionOrder.Quantity == 0)
 						throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.OpenPositionOrder.CurrencyPair.Id));
@@ -433,7 +473,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			{
 				if (orderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending)
 				{
-					Common.Models.Trading.Order serverSideClosePositionOrder;
+					Infrastructure.Common.Models.Trading.Order serverSideClosePositionOrder;
 					if (storedOrderEntity.Item2.OrderStateType != OrderStateType.Pending)
 					{
 						serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
@@ -458,7 +498,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						{
 							if (serverSideClosePositionOrder != null)
 							{
-								var nearestAskSupportPrice = await GetNearestAskSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
+								var nearestAskSupportPrice = await GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
 								orderPair.ClosePositionOrder.Price = nearestAskSupportPrice - orderPair.ClosePositionOrder.CurrencyPair.TickSize;
 							}
 
@@ -466,7 +506,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							if (orderPair.ClosePositionOrder.Quantity == 0)
 								throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.ClosePositionOrder.CurrencyPair.Id));
 
-							serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
+							serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
 						} while (serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 					}
 					else
@@ -564,8 +604,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		}
 
 		private void SyncOrderSettingsWithServer(
-			Common.Models.Trading.Order localOrder,
-			Common.Models.Trading.Order serverOrder)
+			Infrastructure.Common.Models.Trading.Order localOrder,
+			Infrastructure.Common.Models.Trading.Order serverOrder)
 		{
 			localOrder.ExtId = serverOrder.ExtId;
 

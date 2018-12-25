@@ -5,6 +5,7 @@ using StockManager.Infrastructure.Analysis.Trady.Services;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Connectors.Common.Services;
@@ -26,6 +27,9 @@ namespace StockManager.TradingBot
 				.InSingletonScope();
 			Bind<ILoggingService>()
 				.To<LoggingService>();
+			Bind<TradingEventsObserver>()
+				.ToSelf()
+				.InSingletonScope();
 
 			Bind<SQLiteDataContext>()
 				.ToSelf()
