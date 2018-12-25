@@ -21,6 +21,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
+using StockManager.Infrastructure.Connectors.Common.Common;
 
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
@@ -555,16 +556,34 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
 					.ToList())
 				.Single();
+			var cancellationIterropted = false;
+
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
-				if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
-					throw new BusinessException("Cancelling order failed")
-					{
-						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideOpenPositionOrder))
-					};
+				try
+				{
+					var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+					if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
+						throw new BusinessException("Cancelling order failed")
+						{
+							Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideOpenPositionOrder))
+						};
 
-				SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+					SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Order not found") ?? false)
+					{
+						var activeOrders = await _tradingDataConnector.GetActiveOrders(orderPair.OpenPositionOrder.CurrencyPair);
+						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
+								await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, orderPair.OpenPositionOrder.CurrencyPair);
+						SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+						cancellationIterropted = true;
+					}
+					else
+						throw e;
+				}
 			}
 			else
 			{
@@ -585,22 +604,25 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				SyncOrderSettingsWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
 			}
 
-			_orderHistoryRepository.Insert(orderPair.OpenPositionOrder.ToHistory());
-			_orderHistoryRepository.Insert(orderPair.ClosePositionOrder.ToHistory());
-			_orderHistoryRepository.Insert(orderPair.StopLossOrder.ToHistory());
+			if (!cancellationIterropted)
+			{
+				_orderHistoryRepository.Insert(orderPair.OpenPositionOrder.ToHistory());
+				_orderHistoryRepository.Insert(orderPair.ClosePositionOrder.ToHistory());
+				_orderHistoryRepository.Insert(orderPair.StopLossOrder.ToHistory());
 
-			_orderRepository.Delete(storedOrderEntity.Item1);
-			_orderRepository.Delete(storedOrderEntity.Item2);
-			_orderRepository.Delete(storedOrderEntity.Item3);
-			_orderRepository.SaveChanges();
+				_orderRepository.Delete(storedOrderEntity.Item1);
+				_orderRepository.Delete(storedOrderEntity.Item2);
+				_orderRepository.Delete(storedOrderEntity.Item3);
+				_orderRepository.SaveChanges();
 
-			_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.Cancel));
-			_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Cancel));
-			_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Cancel));
+				_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.Cancel));
+				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Cancel));
+				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Cancel));
 
-			_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.History));
-			_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.History));
-			_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.History));
+				_loggingService.LogAction(orderPair.OpenPositionOrder.ToLogAction(OrderActionType.History));
+				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.History));
+				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.History));
+			}
 		}
 
 		private void SyncOrderSettingsWithServer(
