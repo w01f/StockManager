@@ -3,5 +3,5 @@
 	"MinCurrencyPairTradingVolumeInBTC": 900.0,
 	"MaxOrderUsingBallancePart": 1.0,
 	"LimitOrderPriceDifferneceFactor": 5.0,
-	"StopLossPriceDifferneceFactor": 50.0
+	"StopLossPriceDifferneceFactor": 100.0
 }

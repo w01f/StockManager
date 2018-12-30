@@ -39,7 +39,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var williamsRSettings = new CommonIndicatorSettings
 			{
-				Period = 14
+				Period = 10
 			};
 
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
@@ -73,38 +73,69 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					.OfType<SimpleIndicatorValue>()
 					.ToList();
 
-				var rangeFromLastPeak = williamsRValues
-					.Where(value => value != null)
-					.Skip(williamsRValues.Count - WilliamsRSettings.MaxRangeFromLatestOppositePeak)
-					.ToList();
 				var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 
 				if (currentWilliamsRValue?.Value == null)
 					throw new NoNullAllowedException("No WilliamR values calculated");
 
-				if (currentWilliamsRValue.Value >= 90 &&
-					rangeFromLastPeak.Any(value => value.Value < 90) &&
-					rangeFromLastPeak.Max(value => value.Value) >= WilliamsRSettings.MinHighPeakValue)
+				if (currentWilliamsRValue.Value >= 90)
 				{
 					decimal stopOpenPrice;
 					decimal openPrice;
 					if (activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
 					{
-						stopOpenPrice = new[]
-						{
-								currentTargetCandle.MaxPrice,
-								activeOrderPair.OpenPositionOrder.StopPrice ?? 0
-							}.Min();
-						openPrice = stopOpenPrice - activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.LimitOrderPriceDifferneceFactor;
+						var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
+							.Where(item => item.Type == OrderBookItemType.Bid)
+							.ToList();
+
+						if (!orderBookBidItems.Any())
+							throw new NoNullAllowedException("Couldn't load order book");
+
+						var maxBidSize = orderBookBidItems
+							.Max(item => item.Size);
+
+						var topMeaningfulBidPrice = orderBookBidItems
+							.Where(item => item.Size == maxBidSize)
+							.OrderByDescending(item => item.Price)
+							.Select(item => item.Price)
+							.First();
+
+						openPrice = topMeaningfulBidPrice;
+					
+						var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
+							.Where(item => item.Type == OrderBookItemType.Ask)
+							.ToList();
+
+						if (!orderBookAskItems.Any())
+							throw new NoNullAllowedException("Couldn't load order book");
+
+						var bottomMeaningfulAskPrice = orderBookAskItems
+							.OrderBy(item => item.Price)
+							.Skip(1)
+							.Select(item => item.Price)
+							.First();
+						
+						stopOpenPrice = bottomMeaningfulAskPrice;
 					}
 					else
 					{
 						stopOpenPrice = 0;
 
-						var nearestBidSupportPrice = await GetNearestBidSupportPrice(activeOrderPair.OpenPositionOrder.CurrencyPair);
+						var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
+							.Where(item => item.Type == OrderBookItemType.Bid)
+							.ToList();
+
+						if (!orderBookBidItems.Any())
+							throw new NoNullAllowedException("Couldn't load order book");
+
+						var topBidPrice = orderBookBidItems
+							.OrderByDescending(item => item.Price)
+							.Select(item => item.Price)
+							.First();
+
 						openPrice = new[]
-						{
-								nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
+							{
+								topBidPrice,
 								activeOrderPair.OpenPositionOrder.Price
 							}.Max();
 					}
@@ -126,57 +157,55 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				}
 				return new CancelOrderInfo();
 			}
-			else if (activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)
+			
+			if (activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)
 			{
-				decimal stopOpenPrice = 0;
-				var nearestBidSupportPrice = await GetNearestBidSupportPrice(activeOrderPair.OpenPositionOrder.CurrencyPair);
-				var openPrice = new[]
+				var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
+						lowerPeriodCandles,
+						williamsRSettings.Period)
+					.OfType<SimpleIndicatorValue>()
+					.ToList();
+
+				var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
+				if (currentWilliamsRValue != null && currentWilliamsRValue.Value < 50)
 				{
-					nearestBidSupportPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize,
-					activeOrderPair.OpenPositionOrder.Price
-				}.Max();
+					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
+						.Where(item => item.Type == OrderBookItemType.Bid)
+						.ToList();
 
-				if (activeOrderPair.OpenPositionOrder.Price != openPrice)
-					return new UpdateOrderInfo
+					if (!orderBookBidItems.Any())
+						throw new NoNullAllowedException("Couldn't load order book");
+
+					var topBidPrice = orderBookBidItems
+						.OrderByDescending(item => item.Price)
+						.Select(item => item.Price)
+						.First();
+
+					var openPrice = new[]
 					{
-						OpenPrice = openPrice,
-						OpenStopPrice = stopOpenPrice,
+						topBidPrice,
+						activeOrderPair.OpenPositionOrder.Price
+					}.Max();
 
-						ClosePrice = new[] { currentLowPeriodCandle.MaxPrice, activeOrderPair.ClosePositionOrder.Price }.Max(),
-						CloseStopPrice = new[] { currentLowPeriodCandle.MinPrice, activeOrderPair.ClosePositionOrder.StopPrice ?? 0 }.Min(),
-
-						StopLossPrice = new[]
+					if (activeOrderPair.OpenPositionOrder.Price != openPrice)
+						return new UpdateOrderInfo
 						{
-							currentLowPeriodCandle.MinPrice - new[]{activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentLowPeriodCandle.MaxPrice-currentLowPeriodCandle.MinPrice}.Max(),
-							activeOrderPair.StopLossOrder.StopPrice ?? 0
-						}.Min()
-					};
+							OpenPrice = openPrice,
+							OpenStopPrice = 0,
+
+							ClosePrice = new[] { currentLowPeriodCandle.MaxPrice, activeOrderPair.ClosePositionOrder.Price }.Max(),
+							CloseStopPrice = new[] { currentLowPeriodCandle.MinPrice, activeOrderPair.ClosePositionOrder.StopPrice ?? 0 }.Min(),
+
+							StopLossPrice = new[]
+							{
+								currentLowPeriodCandle.MinPrice - new[]{activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentLowPeriodCandle.MaxPrice-currentLowPeriodCandle.MinPrice}.Max(),
+								activeOrderPair.StopLossOrder.StopPrice ?? 0
+							}.Min()
+						};
+				}
+
 			}
 			return new PendingOrderInfo();
-		}
-
-		private async Task<decimal> GetNearestBidSupportPrice(CurrencyPair currencyPair)
-		{
-			var orderBookBidItems = (await _marketDataConnector.GetOrderBook(currencyPair.Id, 20))
-				.Where(item => item.Type == OrderBookItemType.Bid)
-				.ToList();
-
-			if (!orderBookBidItems.Any())
-				throw new NoNullAllowedException("Couldn't load order book");
-
-			var avgBidSize = orderBookBidItems
-				.Average(item => item.Size);
-
-			var topBidPrice = orderBookBidItems
-				.OrderByDescending(item => item.Price)
-				.Select(item => item.Price)
-				.First();
-
-			return orderBookBidItems
-				.Where(item => item.Size > avgBidSize && item.Price < topBidPrice)
-				.OrderByDescending(item => item.Price)
-				.Select(item => item.Price)
-				.First();
 		}
 	}
 }

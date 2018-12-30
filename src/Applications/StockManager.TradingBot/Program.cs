@@ -31,7 +31,7 @@ namespace StockManager.TradingBot
 
 			var result = 0;
 			var now = DateTime.Now;
-			var dueDateTimeSpan = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 1).AddMinutes(1) - now;
+			var dueDateTimeSpan = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 15).AddMinutes(1) - now;
 			var periodTimeSpan = TimeSpan.FromMinutes(1);
 
 			_tradingTimer = new Timer(e =>

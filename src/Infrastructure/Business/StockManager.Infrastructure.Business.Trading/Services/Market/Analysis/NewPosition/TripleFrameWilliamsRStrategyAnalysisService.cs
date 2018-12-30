@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
@@ -8,6 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -40,32 +42,43 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
 					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var candles = await CandleLoadingService.LoadCandles(
-						currencyPair.Id,
-						settings.Period,
-						14,
-						settings.Moment);
+					var orderBookBidItems = (await MarketDataConnector.GetOrderBook(currencyPair.Id, 5))
+						.Where(item => item.Type == OrderBookItemType.Bid)
+						.ToList();
 
-					var currentCandle = candles.Last();
+					if (!orderBookBidItems.Any())
+						throw new NoNullAllowedException("Couldn't load order book");
 
-					buyPositionInfo.OpenPrice = new[]
-					{
-						currentCandle.MaxPrice - currencyPair.TickSize * settings.LimitOrderPriceDifferneceFactor,
-						currentCandle.MinPrice
-					}.Max();
-					buyPositionInfo.OpenStopPrice = currentCandle.MaxPrice;
+					var maxBidSize = orderBookBidItems
+						.Max(item => item.Size);
 
-					var lastPeakValue = IndicatorComputingService.ComputeHighestMaxPrices(
-							candles,
-							candles.Count)
-						.OfType<SimpleIndicatorValue>()
-						.LastOrDefault();
+					var topMeaningfulBidPrice = orderBookBidItems
+						.Where(item => item.Size == maxBidSize)
+						.OrderByDescending(item => item.Price)
+						.Select(item => item.Price)
+						.First();
+
+					buyPositionInfo.OpenPrice = topMeaningfulBidPrice;
+
+					var orderBookAskItems = (await MarketDataConnector.GetOrderBook(currencyPair.Id, 5))
+						.Where(item => item.Type == OrderBookItemType.Ask)
+						.ToList();
+
+					if (!orderBookAskItems.Any())
+						throw new NoNullAllowedException("Couldn't load order book");
+
+					var bottomMeaningfulAskPrice = orderBookAskItems
+						.OrderBy(item => item.Price)
+						.Skip(1)
+						.Select(item => item.Price)
+						.First();
+
+					buyPositionInfo.OpenStopPrice = bottomMeaningfulAskPrice;
 
 					buyPositionInfo.ClosePrice =
-					buyPositionInfo.CloseStopPrice = lastPeakValue?.Value ?? candles.Max(candle => candle.MaxPrice);
+					buyPositionInfo.CloseStopPrice = buyPositionInfo.OpenStopPrice;
 
-					buyPositionInfo.StopLossPrice = candles.Min(candle => candle.MinPrice) -
-													new[] { currencyPair.TickSize * settings.StopLossPriceDifferneceFactor, currentCandle.MaxPrice - currentCandle.MinPrice }.Max();
+					buyPositionInfo.StopLossPrice = buyPositionInfo.OpenPrice - currencyPair.TickSize * settings.StopLossPriceDifferneceFactor;
 
 					newPositionInfo = buyPositionInfo;
 					break;
@@ -91,14 +104,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				SignalPeriod = 9
 			};
 
-			var firtsFrameCandles = (await CandleLoadingService.LoadCandles(
+			var firstFrameCandles = (await CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period.GetHigherFramePeriod(),
 				firstFrameMACDSettings.RequiredCandleRangeSize,
 				settings.Moment)).ToList();
 
 			var firstFrameMACDValues = IndicatorComputingService.ComputeMACD(
-					firtsFrameCandles,
+					firstFrameCandles,
 					firstFrameMACDSettings.EMAPeriod1,
 					firstFrameMACDSettings.EMAPeriod2,
 					firstFrameMACDSettings.SignalPeriod)
@@ -106,25 +119,25 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.ToList();
 
 			var firstFrameCurrentMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 1);
-			var firstFrameOnePreviouseMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
+			var firstFrameOnePreviousMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
 
 			//If all valuable parameters are not null
 			if (firstFrameCurrentMACDValue?.Histogram == null ||
-				firstFrameOnePreviouseMACDValue?.Histogram == null)
+				firstFrameOnePreviousMACDValue?.Histogram == null)
 			{
 				return conditionCheckingResult;
 			}
 
 			//if MACD higher then Signal then it is Bullish trend
 			//if Histogram is rising 
-			if (!(Math.Round(firstFrameCurrentMACDValue.Histogram.Value, 5) >= 0))
+			if (!(firstFrameCurrentMACDValue.Histogram.Value >= 0))
 			{
 				return conditionCheckingResult;
 			}
 
 			var secondFrameWilliamsRSettings = new WilliamsRSettings
 			{
-				Period = 14 + WilliamsRSettings.MaxRangeFromLatestOppositePeak
+				Period = 10
 			};
 
 			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
@@ -156,10 +169,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
-			var secondFrameRangeFromLastPeak = secondFrameWilliamsRValues
-				.Where(value => value != null)
-				.Skip(secondFrameWilliamsRValues.Count - WilliamsRSettings.MaxRangeFromLatestOppositePeak)
-				.ToList();
 			var secondFrameCurrentWilliamsRValue = secondFrameWilliamsRValues.ElementAtOrDefault(secondFrameWilliamsRValues.Count - 1);
 
 			if (secondFrameCurrentWilliamsRValue?.Value == null)
@@ -168,16 +177,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			}
 
 			if (secondFrameCurrentWilliamsRValue.Value < 90)
-			{
-				return conditionCheckingResult;
-			}
-
-			if (secondFrameRangeFromLastPeak.All(value => value.Value >= 90))
-			{
-				return conditionCheckingResult;
-			}
-
-			if (secondFrameRangeFromLastPeak.Max(value => value.Value) < WilliamsRSettings.MinHighPeakValue)
 			{
 				return conditionCheckingResult;
 			}

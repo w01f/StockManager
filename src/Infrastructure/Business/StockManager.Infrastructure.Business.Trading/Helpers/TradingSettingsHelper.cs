@@ -44,13 +44,13 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 				case CandlePeriod.Hour1:
 					return CandlePeriod.Hour4;
 				case CandlePeriod.Minute30:
-					return CandlePeriod.Hour4;
-				case CandlePeriod.Minute15:
 					return CandlePeriod.Hour1;
-				case CandlePeriod.Minute5:
+				case CandlePeriod.Minute15:
 					return CandlePeriod.Minute30;
-				case CandlePeriod.Minute3:
+				case CandlePeriod.Minute5:
 					return CandlePeriod.Minute15;
+				case CandlePeriod.Minute3:
+					return CandlePeriod.Minute5;
 				case CandlePeriod.Minute1:
 					return CandlePeriod.Minute5;
 				default:

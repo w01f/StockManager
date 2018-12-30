@@ -46,10 +46,5 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Settings
 		}
 	}
 
-	public class WilliamsRSettings : CommonIndicatorSettings
-	{
-		public const int MaxRangeFromLatestOppositePeak = 4;
-		public const int MinHighPeakValue = 50;
-		public const int MaxLowPeakValue = 50;
-	}
+	public class WilliamsRSettings : CommonIndicatorSettings { }
 }

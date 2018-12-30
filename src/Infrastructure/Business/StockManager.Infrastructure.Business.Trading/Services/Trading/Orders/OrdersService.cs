@@ -175,8 +175,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 								if (closePositionOrder.Quantity == 0)
 									throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", closePositionOrder.CurrencyPair.Id));
 
-								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder, true);
-							} while (serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
+								try
+								{
+									serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder, true);
+								}
+								catch
+								{
+									serverSideClosePositionOrder = null;
+								}
+							} while (serverSideClosePositionOrder == null || serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 						}
 
 						SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
@@ -383,12 +390,34 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			if (quoteTradingBalance?.Available <= 0)
 				throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", currencyPair.Id));
 
-			openPositionOrder.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
+			Infrastructure.Common.Models.Trading.Order serverSideOpenPositionOrder = null;
+			do
+			{
+				if (serverSideOpenPositionOrder != null)
+				{
+					openPositionOrder.OrderType = OrderType.Limit;
+					openPositionOrder.OrderStateType = OrderStateType.New;
+					openPositionOrder.StopPrice = null;
 
-			if (openPositionOrder.Quantity == 0)
-				throw new BusinessException(String.Format("Trading balance is not enoug to open order: {0}", currencyPair.Id));
+					var nearestBidSupportPrice = await GetNearestBidSupportPrice(openPositionOrder.CurrencyPair);
+					openPositionOrder.Price = nearestBidSupportPrice + openPositionOrder.CurrencyPair.TickSize;
+				}
 
-			var serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder, false);
+				openPositionOrder.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
+				if (openPositionOrder.Quantity == 0)
+					throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", currencyPair.Id));
+
+				try
+				{
+					serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder, true);
+				}
+				catch
+				{
+					serverSideOpenPositionOrder = null;
+				}
+			} while (serverSideOpenPositionOrder == null || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired);
+
+
 			SyncOrderSettingsWithServer(openPositionOrder, serverSideOpenPositionOrder);
 
 			_orderRepository.Insert(openPositionOrder.ToEntity());
@@ -443,8 +472,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						if (orderPair.OpenPositionOrder.Quantity == 0)
 							throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.OpenPositionOrder.CurrencyPair.Id));
 
-						serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
-					} while (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired);
+						try
+						{
+							serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
+						}
+						catch
+						{
+							serverSideOpenPositionOrder = null;
+						}
+					} while (serverSideOpenPositionOrder == null || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired);
 				}
 				else
 				{
@@ -454,11 +490,32 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							Details = String.Format("Open position order: {0}", JsonConvert.SerializeObject(orderPair.OpenPositionOrder))
 						};
 
-					orderPair.OpenPositionOrder.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
-					if (orderPair.OpenPositionOrder.Quantity == 0)
-						throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.OpenPositionOrder.CurrencyPair.Id));
+					serverSideOpenPositionOrder = null;
+					do
+					{
+						if (serverSideOpenPositionOrder != null)
+						{
+							orderPair.OpenPositionOrder.OrderType = OrderType.Limit;
+							orderPair.OpenPositionOrder.OrderStateType = OrderStateType.New;
+							orderPair.OpenPositionOrder.StopPrice = null;
 
-					serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, false);
+							var nearestBidSupportPrice = await GetNearestBidSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
+							orderPair.OpenPositionOrder.Price = nearestBidSupportPrice + orderPair.OpenPositionOrder.CurrencyPair.TickSize;
+						}
+
+						orderPair.OpenPositionOrder.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
+						if (orderPair.OpenPositionOrder.Quantity == 0)
+							throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.OpenPositionOrder.CurrencyPair.Id));
+
+						try
+						{
+							serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
+						}
+						catch
+						{
+							serverSideOpenPositionOrder = null;
+						}
+					} while (serverSideOpenPositionOrder == null || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired);
 				}
 				SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
 
@@ -507,16 +564,44 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							if (orderPair.ClosePositionOrder.Quantity == 0)
 								throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.ClosePositionOrder.CurrencyPair.Id));
 
-							serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
-						} while (serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
+							try
+							{
+								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
+							}
+							catch
+							{
+								serverSideClosePositionOrder = null;
+							}
+						} while (serverSideClosePositionOrder == null || serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 					}
 					else
 					{
-						orderPair.ClosePositionOrder.CalculateSellOrderQuantity(baseTradingBalance, tradingSettings);
-						if (orderPair.ClosePositionOrder.Quantity == 0)
-							throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.ClosePositionOrder.CurrencyPair.Id));
+						serverSideClosePositionOrder = null;
+						do
+						{
+							if (serverSideClosePositionOrder != null)
+							{
+								orderPair.ClosePositionOrder.OrderType = OrderType.Limit;
+								orderPair.ClosePositionOrder.OrderStateType = OrderStateType.New;
+								orderPair.ClosePositionOrder.StopPrice = null;
 
-						serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, false);
+								var nearestAskSupportPrice = await GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
+								orderPair.ClosePositionOrder.Price = nearestAskSupportPrice - orderPair.ClosePositionOrder.CurrencyPair.TickSize;
+							}
+
+							orderPair.ClosePositionOrder.CalculateSellOrderQuantity(baseTradingBalance, tradingSettings);
+							if (orderPair.ClosePositionOrder.Quantity == 0)
+								throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.ClosePositionOrder.CurrencyPair.Id));
+
+							try
+							{
+								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
+							}
+							catch
+							{
+								serverSideClosePositionOrder = null;
+							}
+						} while (serverSideClosePositionOrder == null || serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 					}
 					SyncOrderSettingsWithServer(orderPair.ClosePositionOrder, serverSideClosePositionOrder);
 
@@ -556,7 +641,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
 					.ToList())
 				.Single();
-			var cancellationIterropted = false;
+			var cancellationInterrupted = false;
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
@@ -579,7 +664,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
 								await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, orderPair.OpenPositionOrder.CurrencyPair);
 						SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
-						cancellationIterropted = true;
+						cancellationInterrupted = true;
 					}
 					else
 						throw e;
@@ -604,7 +689,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				SyncOrderSettingsWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
 			}
 
-			if (!cancellationIterropted)
+			if (!cancellationInterrupted)
 			{
 				_orderHistoryRepository.Insert(orderPair.OpenPositionOrder.ToHistory());
 				_orderHistoryRepository.Insert(orderPair.ClosePositionOrder.ToHistory());
