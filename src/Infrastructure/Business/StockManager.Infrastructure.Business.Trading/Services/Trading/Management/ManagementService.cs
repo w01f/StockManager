@@ -74,6 +74,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 								activeOrderPair.ApplyOrderChanges((FixStopLossInfo)marketInfo);
 								await _orderService.UpdatePosition(activeOrderPair);
 							}
+							else if (marketInfo.PositionType == OpenMarketPositionType.Suspend)
+							{
+								await _orderService.SuspendPosition(activeOrderPair);
+							}
 						}
 						else if (activeOrderPair.IsPendingPosition)
 						{
@@ -101,14 +105,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 
 					var baseCurrencyPairs = allCurrencyPairs
 						.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId =>
-										   String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)) &&
-									   !activeOrderPairs.SelectMany(orderPair => new[]
-										   {
-											   orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId,
-											   orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId
-										   })
-										   .Any(currencyId => String.Equals(currencyId, item.BaseCurrencyId) ||
-															  String.Equals(currencyId, item.QuoteCurrencyId))
+										String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)) &&
+										!activeOrderPairs.Any(orderPair => String.Equals(orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId, item.BaseCurrencyId))
 						);
 
 					var allTickers = await _marketDataConnector.GetTickers();

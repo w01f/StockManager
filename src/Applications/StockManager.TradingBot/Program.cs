@@ -20,7 +20,7 @@ namespace StockManager.TradingBot
 			CompositionRoot.Initialize(new DependencyInitializer());
 
 			var configurationService = CompositionRoot.Resolve<ConfigurationService>();
-			
+
 			var tradingEventsObserver = CompositionRoot.Resolve<TradingEventsObserver>();
 			tradingEventsObserver.PositionChanged += OnTradingEventsObserverPositionChanged;
 
@@ -81,19 +81,19 @@ namespace StockManager.TradingBot
 			{
 				case TradingEventType.NewPosition:
 					Console.ForegroundColor = ConsoleColor.Blue;
-					Console.WriteLine("New Position Created");
+					Console.WriteLine($"New Position Created {e.Details}");
 					break;
 				case TradingEventType.PositionOpened:
 					Console.ForegroundColor = ConsoleColor.Yellow;
-					Console.WriteLine("Position Opened");
+					Console.WriteLine($"Position Opened {e.Details}");
 					break;
 				case TradingEventType.PositionClosedSuccessfully:
 					Console.ForegroundColor = ConsoleColor.Green;
-					Console.WriteLine("Position Closed Successfully");
+					Console.WriteLine($"Position Closed Successfully {e.Details}");
 					break;
 				case TradingEventType.PositionClosedDueStopLoss:
 					Console.ForegroundColor = ConsoleColor.Red;
-					Console.WriteLine("Position Closed Due StopLoss");
+					Console.WriteLine($"Position Closed Due StopLoss {e.Details}");
 					break;
 			}
 			Console.ForegroundColor = ConsoleColor.White;

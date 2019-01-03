@@ -54,9 +54,7 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Services
 			_tradingSettings.Moment = newSettings.Moment;
 
 			_tradingSettings.MinCurrencyPairTradingVolumeInBTC = newSettings.MinCurrencyPairTradingVolumeInBTC;
-			_tradingSettings.MaxOrderUsingBallancePart = newSettings.MaxOrderUsingBallancePart;
-			_tradingSettings.LimitOrderPriceDifferneceFactor = newSettings.LimitOrderPriceDifferneceFactor;
-			_tradingSettings.StopLossPriceDifferneceFactor = newSettings.StopLossPriceDifferneceFactor;
+			_tradingSettings.MaxOrderUsingBalancePart = newSettings.MaxOrderUsingBalancePart;
 		}
 
 		public AnalysisSettings GetAnalysisSettings()

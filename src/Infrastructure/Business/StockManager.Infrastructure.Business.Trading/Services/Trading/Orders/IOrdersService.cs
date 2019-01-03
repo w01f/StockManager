@@ -11,6 +11,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		Task<IList<OrderPair>> GetActiveOrders();
 		Task OpenPosition(NewOrderPositionInfo positionInfo);
 		Task UpdatePosition(OrderPair orderPair);
+		Task SuspendPosition(OrderPair orderPair);
 		Task CancelPosition(OrderPair orderPair);
 	}
 }

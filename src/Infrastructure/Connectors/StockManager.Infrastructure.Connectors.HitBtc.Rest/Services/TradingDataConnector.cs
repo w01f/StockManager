@@ -93,7 +93,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			var request = new RestRequest("order", Method.POST);
 			request.Configure();
 
-			request.AddBody(new
+			request.AddJsonBody(new
 			{
 				clientOrderId = innerModel.ClientId,
 				symbol = innerModel.CurrencyPairId,

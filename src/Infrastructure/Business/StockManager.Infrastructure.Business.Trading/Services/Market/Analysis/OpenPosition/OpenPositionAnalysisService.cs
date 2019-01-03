@@ -9,6 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPo
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
 using StockManager.Infrastructure.Common.Enums;
+using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -79,109 +80,100 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				throw new NoNullAllowedException("No candles loaded");
 			var currentLowPeriodCandle = lowerPeriodCandles.Last();
 
-			if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
-				activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+			if (currentTargetPeriodCandle.Moment < currentLowPeriodCandle.Moment)
 			{
-				if (currentTargetPeriodCandle.Moment == currentLowPeriodCandle.Moment)
+				var lastLowPeriodCandles = lowerPeriodCandles
+					.Where(item => item.Moment > currentTargetPeriodCandle.Moment)
+					.OrderBy(item => item.Moment)
+					.ToList();
+
+				if (lastLowPeriodCandles.Any())
 				{
-					var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
-							targetPeriodLastCandles,
-							williamsRSettings.Period)
-						.OfType<SimpleIndicatorValue>()
-						.ToList();
-
-					var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
-					if (currentWilliamsRValue?.Value <= 20)
+					targetPeriodLastCandles.Add(new Candle
 					{
-						var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
-
-						var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
-							.Where(item => item.Type == OrderBookItemType.Ask)
-							.ToList();
-
-						if (!orderBookAskItems.Any())
-							throw new NoNullAllowedException("Couldn't load order book");
-
-						var maxAskSize = orderBookAskItems
-							.Max(item => item.Size);
-
-						var bottomMeaningfulAskPrice = orderBookAskItems
-							.Where(item => item.Size == maxAskSize)
-							.OrderBy(item => item.Price)
-							.Select(item => item.Price)
-							.First();
-
-						updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice;
-
-						var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
-							.Where(item => item.Type == OrderBookItemType.Bid)
-							.ToList();
-
-						if (!orderBookBidItems.Any())
-							throw new NoNullAllowedException("Couldn't load order book");
-
-						var topMeaningfulBidPrice = orderBookBidItems
-							.OrderByDescending(item => item.Price)
-							.Skip(1)
-							.Select(item => item.Price)
-							.First();
-
-						updatePositionInfo.CloseStopPrice = new[] { updatePositionInfo.CloseStopPrice, topMeaningfulBidPrice }.Max();
-
-						if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
-							updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice ||
-							updatePositionInfo.CloseStopPrice != initialPositionInfo.CloseStopPrice)
-							newPositionInfo = updatePositionInfo;
-					}
+						Moment = lastLowPeriodCandles.Last().Moment,
+						MaxPrice = lastLowPeriodCandles.Max(item => item.MaxPrice),
+						MinPrice = lastLowPeriodCandles.Min(item => item.MinPrice),
+						OpenPrice = lastLowPeriodCandles.First().OpenPrice,
+						ClosePrice = lastLowPeriodCandles.Last().ClosePrice,
+						VolumeInBaseCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInBaseCurrency),
+						VolumeInQuoteCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInQuoteCurrency)
+					});
 				}
-
-				var fixStopLossInfo = newPositionInfo != null ? (FixStopLossInfo)newPositionInfo : new FixStopLossInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+			}
+			else
+			{
+				var fixStopLossInfo = new FixStopLossInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
 				ComputeStopLossUsingParabolicSAR(
 					fixStopLossInfo,
 					activeOrderPair.StopLossOrder,
 					currentTargetPeriodCandle);
 
-				if (newPositionInfo == null
-					&& fixStopLossInfo.StopLossPrice != initialPositionInfo.StopLossPrice)
+				if (fixStopLossInfo.StopLossPrice != initialPositionInfo.StopLossPrice)
 					newPositionInfo = fixStopLossInfo;
 			}
-			else if (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending)
+
+			var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
+					targetPeriodLastCandles,
+					williamsRSettings.Period)
+				.OfType<SimpleIndicatorValue>()
+				.ToList();
+
+			var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
+			var previousWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 2);
+
+			if (currentWilliamsRValue?.Value <= 30 || (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending && currentWilliamsRValue?.Value > 80))
 			{
-				var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+				var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = ((FixStopLossInfo)newPositionInfo)?.StopLossPrice ?? initialPositionInfo.StopLossPrice };
 
-				var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
-						lowerPeriodCandles,
-						williamsRSettings.Period)
-					.OfType<SimpleIndicatorValue>()
+				var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
+					.Where(item => item.Type == OrderBookItemType.Ask)
 					.ToList();
-				var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 
-				if (currentWilliamsRValue != null && currentWilliamsRValue.Value > 50)
+				if (!orderBookAskItems.Any())
+					throw new NoNullAllowedException("Couldn't load order book");
+
+				var maxAskSize = orderBookAskItems
+					.Max(item => item.Size);
+
+				var bottomMeaningfulAskPrice = orderBookAskItems
+					.Where(item => item.Size == maxAskSize)
+					.OrderBy(item => item.Price)
+					.Select(item => item.Price)
+					.First();
+
+				updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice;
+
+				if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
+					activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
 				{
-					updatePositionInfo.CloseStopPrice = 0;
-
-					var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 20))
-						.Where(item => item.Type == OrderBookItemType.Ask)
+					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
+						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
 
-					if (!orderBookAskItems.Any())
+					if (!orderBookBidItems.Any())
 						throw new NoNullAllowedException("Couldn't load order book");
 
-					var bottomAskPrice = orderBookAskItems
-						.OrderBy(item => item.Price)
+					var topMeaningfulBidPrice = orderBookBidItems
+						.OrderByDescending(item => item.Price)
+						.Skip(1)
 						.Select(item => item.Price)
 						.First();
 
-					updatePositionInfo.ClosePrice = new[]
-					{
-						bottomAskPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize,
-						activeOrderPair.ClosePositionOrder.Price
-					}.Min();
-
-					if (updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice)
-						newPositionInfo = updatePositionInfo;
+					updatePositionInfo.CloseStopPrice = new[] { updatePositionInfo.CloseStopPrice, topMeaningfulBidPrice }.Max();
 				}
+				else
+					updatePositionInfo.CloseStopPrice = 0;
+
+				if (updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice ||
+					updatePositionInfo.CloseStopPrice != initialPositionInfo.CloseStopPrice)
+					newPositionInfo = updatePositionInfo;
 			}
+			else if (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
+					currentWilliamsRValue?.Value > 30 &&
+					currentWilliamsRValue?.Value <= 80 &&
+					currentWilliamsRValue?.Value < previousWilliamsRValue?.Value)
+				newPositionInfo = new SuspendPositionInfo();
 
 			if (newPositionInfo == null)
 				return new HoldPositionInfo();
@@ -192,7 +184,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		private void ComputeStopLossUsingParabolicSAR(
 			FixStopLossInfo positionInfo,
 			Order stopLossOrder,
-			Common.Models.Market.Candle currentCandle)
+			Candle currentCandle)
 		{
 			var settings = _configurationService.GetAnalysisSettings();
 

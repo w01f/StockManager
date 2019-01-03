@@ -108,6 +108,19 @@ namespace StockManager.Infrastructure.Analysis.Trady.Services
 			return outputValues;
 		}
 
+		public IList<BaseIndicatorValue> ComputeMomentum(IList<Candle> candles, int period)
+		{
+			var indicator = new Momentum(candles.Select(candle => candle.ToInnerModel()), period);
+			var innerValues = indicator.Compute();
+
+			var outputValues = new List<BaseIndicatorValue>();
+			outputValues.AddRange(innerValues
+				.Where(value => value.DateTime.HasValue)
+				.Select(value => value.ToOuterModel()));
+
+			return outputValues;
+		}
+
 		public IList<BaseIndicatorValue> ComputeAccumulationDistribution(IList<Candle> candles)
 		{
 			var indicator = new AccumulationDistributionLine(candles.Select(candle => candle.ToInnerModel()));

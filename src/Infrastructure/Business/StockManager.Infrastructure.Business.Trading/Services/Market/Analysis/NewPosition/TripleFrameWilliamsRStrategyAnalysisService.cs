@@ -1,5 +1,4 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
@@ -76,9 +75,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					buyPositionInfo.OpenStopPrice = bottomMeaningfulAskPrice;
 
 					buyPositionInfo.ClosePrice =
-					buyPositionInfo.CloseStopPrice = buyPositionInfo.OpenStopPrice;
+					buyPositionInfo.CloseStopPrice =
+						buyPositionInfo.OpenStopPrice;
 
-					buyPositionInfo.StopLossPrice = buyPositionInfo.OpenPrice - currencyPair.TickSize * settings.StopLossPriceDifferneceFactor;
+					buyPositionInfo.StopLossPrice = buyPositionInfo.OpenPrice - currencyPair.TickSize * 2000;
 
 					newPositionInfo = buyPositionInfo;
 					break;
@@ -140,43 +140,69 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				Period = 10
 			};
 
-			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
+			var secondFrameTargetPeriodCandles = (await CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period,
 				secondFrameWilliamsRSettings.Period + 1,
 				settings.Moment)).ToList();
 
-			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
-			var secondFrameOnePreviousCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
-
-			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null ||
-				secondFrameOnePreviousCandle?.VolumeInBaseCurrency == null)
-			{
+			var secondFrameCurrentCandle = secondFrameTargetPeriodCandles.ElementAtOrDefault(secondFrameTargetPeriodCandles.Count - 1);
+			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null)
 				return conditionCheckingResult;
+
+			var lowerPeriodCandles = (await CandleLoadingService.LoadCandles(
+					currencyPair.Id,
+					settings.Period.GetLowerFramePeriod(),
+					secondFrameWilliamsRSettings.Period + 1,
+					settings.Moment))
+				.ToList();
+
+			if (!lowerPeriodCandles.Any())
+				throw new NoNullAllowedException("No candles loaded");
+			var currentLowPeriodCandle = lowerPeriodCandles.Last();
+
+			if (secondFrameCurrentCandle.Moment != currentLowPeriodCandle.Moment)
+			{
+				var lastLowPeriodCandles = lowerPeriodCandles
+					.Where(item => item.Moment > secondFrameCurrentCandle.Moment)
+					.OrderBy(item => item.Moment)
+					.ToList();
+
+				if (lastLowPeriodCandles.Any())
+				{
+					secondFrameTargetPeriodCandles.Add(new Candle
+					{
+						Moment = lastLowPeriodCandles.Last().Moment,
+						MaxPrice = lastLowPeriodCandles.Max(item => item.MaxPrice),
+						MinPrice = lastLowPeriodCandles.Min(item => item.MinPrice),
+						OpenPrice = lastLowPeriodCandles.First().OpenPrice,
+						ClosePrice = lastLowPeriodCandles.Last().ClosePrice,
+						VolumeInBaseCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInBaseCurrency),
+						VolumeInQuoteCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInQuoteCurrency)
+					});
+				}
 			}
 
-			////if previouse volume lower then current 
-			////if price changing direction from previouse candle to current
-			//if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
-			//	  (secondFrameOnePreviouseCandle.IsFallingCandle || secondFrameCurrentCandle.OpenPrice < secondFrameOnePreviouseCandle.ClosePrice)))
-			//{
-			//	return conditionCheckingResult;
-			//}
-
 			var secondFrameWilliamsRValues = IndicatorComputingService.ComputeWilliamsR(
-					secondFrameCandles,
+					secondFrameTargetPeriodCandles,
 					secondFrameWilliamsRSettings.Period)
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
 			var secondFrameCurrentWilliamsRValue = secondFrameWilliamsRValues.ElementAtOrDefault(secondFrameWilliamsRValues.Count - 1);
+			var secondFrameOnePreviousWilliamsRValue = secondFrameWilliamsRValues.ElementAtOrDefault(secondFrameWilliamsRValues.Count - 2);
 
-			if (secondFrameCurrentWilliamsRValue?.Value == null)
+			if (secondFrameCurrentWilliamsRValue?.Value == null || secondFrameOnePreviousWilliamsRValue?.Value == null)
 			{
 				return conditionCheckingResult;
 			}
 
-			if (secondFrameCurrentWilliamsRValue.Value < 90)
+			if (secondFrameCurrentWilliamsRValue.Value < 50 || secondFrameCurrentWilliamsRValue.Value > 95)
+			{
+				return conditionCheckingResult;
+			}
+
+			if (secondFrameCurrentWilliamsRValue.Value > secondFrameOnePreviousWilliamsRValue.Value)
 			{
 				return conditionCheckingResult;
 			}

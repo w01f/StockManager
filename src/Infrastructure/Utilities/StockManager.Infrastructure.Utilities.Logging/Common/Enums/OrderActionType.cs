@@ -6,6 +6,7 @@
 		Update,
 		Fill,
 		Cancel,
+		Suspend,
 		History
 	}
 }
