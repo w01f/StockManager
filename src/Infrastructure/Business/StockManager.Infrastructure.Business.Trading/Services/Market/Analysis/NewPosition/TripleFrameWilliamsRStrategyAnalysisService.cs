@@ -1,5 +1,4 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
@@ -31,8 +30,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
 		{
-			var settings = ConfigurationService.GetTradingSettings();
-
 			NewPositionInfo newPositionInfo;
 			var conditionCheckingResult = await CheckConditions(currencyPair);
 

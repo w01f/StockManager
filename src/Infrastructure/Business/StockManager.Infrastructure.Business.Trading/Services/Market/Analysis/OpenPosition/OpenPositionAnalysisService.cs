@@ -150,7 +150,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram < 0;
 
 			if ((currentWilliamsRValue?.Value <= (useExtendedBorders ? 30 : 20) &&
-					currentWilliamsRValue?.Value > 5 &&
+					currentWilliamsRValue.Value > 5 &&
 					currentWilliamsRValue.Value > previousWilliamsRValue?.Value) ||
 				(activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
 					currentWilliamsRValue?.Value > 80 &&

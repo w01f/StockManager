@@ -663,7 +663,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				_orderRepository.Update(orderPair.ClosePositionOrder.ToEntity(storedOrderEntity.Item2));
 				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Suspend));
 			}
-			catch { }
+			catch
+			{
+				// ignored
+			}
 		}
 
 		public async Task CancelPosition(OrderPair orderPair)
@@ -698,7 +701,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						cancellationInterrupted = true;
 					}
 					else
-						throw e;
+						throw;
 				}
 			}
 			else

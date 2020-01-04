@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Common;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Chart.Models;
-using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 using CommonIndicatorSettings = StockManager.Infrastructure.Business.Chart.Models.CommonIndicatorSettings;
@@ -17,17 +16,14 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 	{
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly IIndicatorComputingService _indicatorComputingService;
-		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly ConfigurationService _configurationService;
 
 		public ChartService(CandleLoadingService candleLoadingService,
 			IIndicatorComputingService indicatorComputingService,
-			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			ConfigurationService configurationService)
 		{
 			_candleLoadingService = candleLoadingService;
 			_indicatorComputingService = indicatorComputingService;
-			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 			_configurationService = configurationService;
 		}
 
@@ -104,7 +100,7 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				chartDataset.IndicatorData.Add(indicatorDataset);
 			}
 
-			var defaultTradindSettings = _configurationService.GetTradingSettings();
+			var defaultTradingSettings = _configurationService.GetTradingSettings();
 
 			var tradingSettings = _configurationService.GetTradingSettings();
 			tradingSettings.Period = settings.Period;
@@ -133,7 +129,7 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				chartDataset.TradingData.Add(tradingData);
 			}
 
-			_configurationService.UpdateTradingSettings(defaultTradindSettings);
+			_configurationService.UpdateTradingSettings(defaultTradingSettings);
 
 			return chartDataset;
 		}

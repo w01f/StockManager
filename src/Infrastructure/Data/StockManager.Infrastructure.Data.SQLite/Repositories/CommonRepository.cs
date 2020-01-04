@@ -9,8 +9,8 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 {
 	public class CommonRepository<TEntity> : IRepository<TEntity> where TEntity : BaseEntity
 	{
-		protected readonly SQLiteDataContext _context;
-		protected readonly DbSet<TEntity> _entities;
+		private readonly SQLiteDataContext _context;
+		private readonly DbSet<TEntity> _entities;
 
 		public CommonRepository(SQLiteDataContext context)
 		{

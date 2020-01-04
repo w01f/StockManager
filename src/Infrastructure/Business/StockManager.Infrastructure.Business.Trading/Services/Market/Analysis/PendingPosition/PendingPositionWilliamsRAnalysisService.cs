@@ -130,7 +130,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			if (currentWilliamsRValue.Value >= (useExtendedBorders ? 50 : 80) &&
 				currentWilliamsRValue.Value < 95 &&
-				((activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue?.Value < previousWilliamsRValue?.Value) ||
+				((activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue.Value < previousWilliamsRValue?.Value) ||
 				(activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
 				Math.Abs(maxWilliamsRValue - currentWilliamsRValue.Value ?? 0) < 20)
 			{

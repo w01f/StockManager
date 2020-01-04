@@ -2,8 +2,6 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using StockManager.Infrastructure.Data.SQLite;
 
 namespace StockManager.Infrastructure.Data.SQLite.Migrations
 {

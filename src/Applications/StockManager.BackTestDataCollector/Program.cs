@@ -17,9 +17,9 @@ namespace StockManager.BackTestDataCollector
 			{
 				try
 				{
-					await collectorService.LoadMaketData("ETHBTC", 11);
-					await collectorService.LoadMaketData("BCHBTC", 11);
-					await collectorService.LoadMaketData("BCHETH", 11);
+					await collectorService.LoadMarketData("ETHBTC", 11);
+					await collectorService.LoadMarketData("BCHBTC", 11);
+					await collectorService.LoadMarketData("BCHETH", 11);
 					Console.WriteLine("Data loaded successfully");
 					result = 0;
 				}
