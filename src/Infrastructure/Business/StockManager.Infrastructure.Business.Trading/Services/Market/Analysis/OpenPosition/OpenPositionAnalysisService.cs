@@ -49,12 +49,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var williamsRSettings = new CommonIndicatorSettings
 			{
-				Period = 7
+				Period = 10
+			};
+
+			var higherPeriodMACDSettings = new MACDSettings
+			{
+				EMAPeriod1 = 12,
+				EMAPeriod2 = 26,
+				SignalPeriod = 9
 			};
 
 			var candleRangeSize = new[]
 			{
-				williamsRSettings.Period+1,
+				williamsRSettings.Period + 2,
 				2
 			}.Max();
 
@@ -68,6 +75,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			if (!targetPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
 			var currentTargetPeriodCandle = targetPeriodLastCandles.Last();
+
+			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+					settings.Period.GetHigherFramePeriod(),
+					williamsRSettings.Period,
+					settings.Moment))
+				.ToList();
+			if (!higherPeriodLastCandles.Any())
+				throw new NoNullAllowedException("No candles loaded");
 
 			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
 					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
@@ -122,7 +138,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 			var previousWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 2);
 
-			if (currentWilliamsRValue?.Value <= 30 || (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending && currentWilliamsRValue?.Value > 80))
+			var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
+					higherPeriodLastCandles,
+					higherPeriodMACDSettings.EMAPeriod1,
+					higherPeriodMACDSettings.EMAPeriod2,
+					higherPeriodMACDSettings.SignalPeriod)
+				.OfType<MACDValue>()
+				.ToList();
+
+			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
+			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram < 0;
+
+			if ((currentWilliamsRValue?.Value <= (useExtendedBorders ? 30 : 20) &&
+					currentWilliamsRValue?.Value > 5 &&
+					currentWilliamsRValue.Value > previousWilliamsRValue?.Value) ||
+				(activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
+					currentWilliamsRValue?.Value > 80 &&
+					currentWilliamsRValue.Value > previousWilliamsRValue?.Value))
 			{
 				var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = ((FixStopLossInfo)newPositionInfo)?.StopLossPrice ?? initialPositionInfo.StopLossPrice };
 
@@ -133,20 +165,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				if (!orderBookAskItems.Any())
 					throw new NoNullAllowedException("Couldn't load order book");
 
-				var maxAskSize = orderBookAskItems
-					.Max(item => item.Size);
-
-				var bottomMeaningfulAskPrice = orderBookAskItems
-					.Where(item => item.Size == maxAskSize)
-					.OrderBy(item => item.Price)
-					.Select(item => item.Price)
-					.First();
-
-				updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice;
-
 				if (activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
 					activeOrderPair.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
 				{
+					var maxAskSize = orderBookAskItems
+						.Max(item => item.Size);
+
+					var bottomMeaningfulAskPrice = orderBookAskItems
+						.Where(item => item.Size == maxAskSize)
+						.Select(item => item.Price)
+						.First();
+
+					updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize;
+
 					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
@@ -160,19 +191,32 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						.Select(item => item.Price)
 						.First();
 
-					updatePositionInfo.CloseStopPrice = new[] { updatePositionInfo.CloseStopPrice, topMeaningfulBidPrice }.Max();
+					updatePositionInfo.CloseStopPrice = new[] { activeOrderPair.ClosePositionOrder.StopPrice ?? 0, topMeaningfulBidPrice }.Max();
 				}
 				else
+				{
+					var bottomAskPrice = orderBookAskItems
+						.OrderBy(item => item.Price)
+						.Select(item => item.Price)
+						.First();
+
+					updatePositionInfo.ClosePrice = activeOrderPair.ClosePositionOrder.Price == bottomAskPrice ?
+						bottomAskPrice :
+						bottomAskPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize;
+
 					updatePositionInfo.CloseStopPrice = 0;
+				}
 
 				if (updatePositionInfo.ClosePrice != initialPositionInfo.ClosePrice ||
 					updatePositionInfo.CloseStopPrice != initialPositionInfo.CloseStopPrice)
 					newPositionInfo = updatePositionInfo;
 			}
 			else if (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentWilliamsRValue?.Value > 30 &&
-					currentWilliamsRValue?.Value <= 80 &&
-					currentWilliamsRValue?.Value < previousWilliamsRValue?.Value)
+					currentWilliamsRValue?.Value > (useExtendedBorders ? 30 : 20) &&
+					currentWilliamsRValue.Value < previousWilliamsRValue?.Value)
+				newPositionInfo = new SuspendPositionInfo();
+			else if (activeOrderPair.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
+					currentWilliamsRValue?.Value <= 5)
 				newPositionInfo = new SuspendPositionInfo();
 
 			if (newPositionInfo == null)

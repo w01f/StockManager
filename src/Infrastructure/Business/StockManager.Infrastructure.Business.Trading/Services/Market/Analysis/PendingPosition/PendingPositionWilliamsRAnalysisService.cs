@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
@@ -39,13 +40,20 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var williamsRSettings = new CommonIndicatorSettings
 			{
-				Period = 10
+				Period = 14
+			};
+
+			var higherPeriodMACDSettings = new MACDSettings
+			{
+				EMAPeriod1 = 12,
+				EMAPeriod2 = 26,
+				SignalPeriod = 9
 			};
 
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
 				activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
 				settings.Period,
-				williamsRSettings.Period + 1,
+				williamsRSettings.Period * 2,
 				settings.Moment))
 				.ToList();
 
@@ -53,10 +61,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				throw new NoNullAllowedException("No candles loaded");
 			var currentTargetPeriodCandle = targetPeriodLastCandles.Last();
 
+			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+					settings.Period.GetHigherFramePeriod(),
+					williamsRSettings.Period,
+					settings.Moment))
+				.ToList();
+			if (!higherPeriodLastCandles.Any())
+				throw new NoNullAllowedException("No candles loaded");
+
 			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
 					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
-					williamsRSettings.Period + 1,
+					williamsRSettings.Period,
 					settings.Moment))
 				.ToList();
 
@@ -95,14 +112,27 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.ToList();
 			var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
 			var previousWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 2);
+			var maxWilliamsRValue = williamsRValues.Where(item => item.Value.HasValue).Select(item => item.Value.Value).Max();
 
 			if (currentWilliamsRValue?.Value == null)
 				throw new NoNullAllowedException("No WilliamR values calculated");
 
-			if (currentWilliamsRValue.Value >= 50 &&
+			var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
+					higherPeriodLastCandles,
+					higherPeriodMACDSettings.EMAPeriod1,
+					higherPeriodMACDSettings.EMAPeriod2,
+					higherPeriodMACDSettings.SignalPeriod)
+				.OfType<MACDValue>()
+				.ToList();
+
+			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
+			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram >= 0;
+
+			if (currentWilliamsRValue.Value >= (useExtendedBorders ? 50 : 80) &&
 				currentWilliamsRValue.Value < 95 &&
 				((activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue?.Value < previousWilliamsRValue?.Value) ||
-				(activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)))
+				(activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
+				Math.Abs(maxWilliamsRValue - currentWilliamsRValue.Value ?? 0) < 20)
 			{
 				decimal stopOpenPrice;
 				decimal openPrice;
@@ -115,16 +145,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					if (!orderBookBidItems.Any())
 						throw new NoNullAllowedException("Couldn't load order book");
 
-					var maxBidSize = orderBookBidItems
-						.Max(item => item.Size);
-
-					var topMeaningfulBidPrice = orderBookBidItems
-						.Where(item => item.Size == maxBidSize)
+					var topBidPrice = orderBookBidItems
 						.OrderByDescending(item => item.Price)
 						.Select(item => item.Price)
 						.First();
 
-					openPrice = topMeaningfulBidPrice;
+					openPrice = activeOrderPair.OpenPositionOrder.Price == topBidPrice ?
+						topBidPrice :
+						(topBidPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize);
 
 					var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Ask)
@@ -159,9 +187,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					openPrice = new[]
 						{
-								topBidPrice,
-								activeOrderPair.OpenPositionOrder.Price
-							}.Max();
+							activeOrderPair.OpenPositionOrder.Price==topBidPrice?
+								topBidPrice:
+								(topBidPrice+activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize),
+							activeOrderPair.OpenPositionOrder.Price
+						}.Max();
 				}
 
 				if (activeOrderPair.OpenPositionOrder.Price != openPrice ||
@@ -176,7 +206,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 						StopLossPrice = new[]
 						{
-							currentTargetPeriodCandle.MinPrice - targetPeriodLastCandles.Select(candle=>(candle.MaxPrice-candle.MinPrice)*10).Average(),
+							currentTargetPeriodCandle.MinPrice - targetPeriodLastCandles.Select(candle=>(candle.MaxPrice-candle.MinPrice)*5).Average(),
 							activeOrderPair.StopLossOrder.StopPrice ?? 0
 						}.Min()
 					};

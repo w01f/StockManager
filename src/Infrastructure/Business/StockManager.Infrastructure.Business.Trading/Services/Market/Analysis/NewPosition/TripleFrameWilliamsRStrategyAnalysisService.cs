@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
@@ -130,20 +131,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			//if MACD higher then Signal then it is Bullish trend
 			//if Histogram is rising 
-			if (!(firstFrameCurrentMACDValue.Histogram.Value >= 0))
+			if (!(firstFrameCurrentMACDValue.Histogram.Value >= 0 ||
+				firstFrameCurrentMACDValue.Histogram.Value > firstFrameOnePreviousMACDValue.Histogram))
 			{
 				return conditionCheckingResult;
 			}
 
+			var useExtendedBorders = firstFrameCurrentMACDValue.Histogram.Value >= 0;
+
 			var secondFrameWilliamsRSettings = new WilliamsRSettings
 			{
-				Period = 10
+				Period = 14
 			};
 
 			var secondFrameTargetPeriodCandles = (await CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period,
-				secondFrameWilliamsRSettings.Period + 1,
+				secondFrameWilliamsRSettings.Period + 2,
 				settings.Moment)).ToList();
 
 			var secondFrameCurrentCandle = secondFrameTargetPeriodCandles.ElementAtOrDefault(secondFrameTargetPeriodCandles.Count - 1);
@@ -153,7 +157,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var lowerPeriodCandles = (await CandleLoadingService.LoadCandles(
 					currencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
-					secondFrameWilliamsRSettings.Period + 1,
+					secondFrameWilliamsRSettings.Period,
 					settings.Moment))
 				.ToList();
 
@@ -197,7 +201,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return conditionCheckingResult;
 			}
 
-			if (secondFrameCurrentWilliamsRValue.Value < 50 || secondFrameCurrentWilliamsRValue.Value > 95)
+			if (secondFrameCurrentWilliamsRValue.Value < (useExtendedBorders ? 50 : 80) || secondFrameCurrentWilliamsRValue.Value > 95)
 			{
 				return conditionCheckingResult;
 			}

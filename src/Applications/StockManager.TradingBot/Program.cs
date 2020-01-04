@@ -2,7 +2,6 @@
 using System.IO;
 using System.Reflection;
 using System.Threading;
-using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
@@ -34,42 +33,47 @@ namespace StockManager.TradingBot
 			var dueDateTimeSpan = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 15).AddMinutes(1) - now;
 			var periodTimeSpan = TimeSpan.FromMinutes(1);
 
-			_tradingTimer = new Timer(e =>
+			var taskComplete = true;
+			TimerCallback timerCallback = async e =>
 			{
-				Task.Run(async () =>
+				if (!taskComplete)
+					return;
+
+				taskComplete = false;
+				try
 				{
-					try
-					{
-						Console.WriteLine("Iteration started at {0}", DateTime.Now);
+					Console.WriteLine("Iteration started at {0}", DateTime.Now);
 
-						var watch = System.Diagnostics.Stopwatch.StartNew();
+					var watch = System.Diagnostics.Stopwatch.StartNew();
 
-						var tradingSettings = configurationService.GetTradingSettings();
-						tradingSettings.Period = CandlePeriod.Minute5;
-						tradingSettings.Moment = DateTime.UtcNow;
-						tradingSettings.BaseOrderSide = OrderSide.Buy;
+					var tradingSettings = configurationService.GetTradingSettings();
+					tradingSettings.Period = CandlePeriod.Minute5;
+					tradingSettings.Moment = DateTime.UtcNow;
+					tradingSettings.BaseOrderSide = OrderSide.Buy;
 
-						configurationService.UpdateTradingSettings(tradingSettings);
+					configurationService.UpdateTradingSettings(tradingSettings);
 
-						await tradingService.RunTradingIteration();
+					await tradingService.RunTradingIteration();
 
-						watch.Stop();
-						Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
+					watch.Stop();
+					Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
 
-						result = 0;
-					}
-					catch (Exception exception)
-					{
-						Console.ForegroundColor = ConsoleColor.Red;
-						Console.WriteLine("Iteration failed");
-						Console.WriteLine(exception);
-						Console.ForegroundColor = ConsoleColor.White;
-					}
-				}).GetAwaiter().GetResult();
-			},
-			null,
-			dueDateTimeSpan,
-			periodTimeSpan);
+					result = 0;
+				}
+				catch (Exception exception)
+				{
+					Console.ForegroundColor = ConsoleColor.Red;
+					Console.WriteLine("Iteration failed");
+					Console.WriteLine(exception);
+					Console.ForegroundColor = ConsoleColor.White;
+				}
+				finally
+				{
+					taskComplete = true;
+				}
+			};
+
+			_tradingTimer = new Timer(timerCallback, null, dueDateTimeSpan, periodTimeSpan);
 
 			Console.ReadLine();
 			return result;
@@ -96,7 +100,7 @@ namespace StockManager.TradingBot
 					Console.WriteLine($"Position Closed Due StopLoss {e.Details}");
 					break;
 			}
-			Console.ForegroundColor = ConsoleColor.White;
+			Console.ResetColor();
 		}
 	}
 }
