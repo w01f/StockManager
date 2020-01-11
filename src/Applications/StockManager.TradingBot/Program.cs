@@ -5,16 +5,14 @@ using System.Threading;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
-using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.TradingBot
 {
 	class Program
 	{
-		private static Timer _tradingTimer;
-
-		static int Main(string[] args)
+		static int Main()
 		{
 			CompositionRoot.Initialize(new DependencyInitializer());
 
@@ -24,9 +22,9 @@ namespace StockManager.TradingBot
 			tradingEventsObserver.PositionChanged += OnTradingEventsObserverPositionChanged;
 
 			CompositionRoot.Resolve<ConfigurationService>()
-				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "Settings"));
+				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location), "Settings"));
 
-			var tradingService = CompositionRoot.Resolve<ManagementService>();
+			var tradingController = CompositionRoot.Resolve<ITradingController>();
 
 			var result = 0;
 			var now = DateTime.Now;
@@ -53,7 +51,7 @@ namespace StockManager.TradingBot
 
 					configurationService.UpdateTradingSettings(tradingSettings);
 
-					await tradingService.RunTradingIteration();
+					await tradingController.StartTrading();
 
 					watch.Stop();
 					Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
@@ -73,7 +71,8 @@ namespace StockManager.TradingBot
 				}
 			};
 
-			_tradingTimer = new Timer(timerCallback, null, dueDateTimeSpan, periodTimeSpan);
+			var tradingTimer = new Timer(timerCallback, null, dueDateTimeSpan, periodTimeSpan);
+			GC.KeepAlive(tradingTimer);
 
 			Console.ReadLine();
 			return result;

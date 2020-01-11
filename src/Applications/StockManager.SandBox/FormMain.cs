@@ -5,6 +5,7 @@ using Ninject;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
+// ReSharper disable UnusedVariable
 namespace StockManager.SandBox
 {
 	public partial class FormMain : Form
@@ -52,7 +53,7 @@ namespace StockManager.SandBox
 
 			var testOrder = await _tradingDataConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
 
-			MessageBox.Show("Passed");
+			MessageBox.Show(@"Passed");
 		}
 	}
 }

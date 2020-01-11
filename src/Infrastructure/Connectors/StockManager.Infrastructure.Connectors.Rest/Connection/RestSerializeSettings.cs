@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
+namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
 	class RestSerializeSettings : JsonSerializerSettings
 	{

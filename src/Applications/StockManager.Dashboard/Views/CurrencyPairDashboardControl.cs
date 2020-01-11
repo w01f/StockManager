@@ -26,6 +26,8 @@ namespace StockManager.Dashboard.Views
 		{
 			Info = info;
 			InitializeComponent();
+			
+			// ReSharper disable once VirtualMemberCallInConstructor
 			Text = Info.Id;
 		}
 
@@ -182,7 +184,7 @@ namespace StockManager.Dashboard.Views
 								.FirstOrDefault());
 							break;
 						default:
-							throw new ArgumentOutOfRangeException("Undefined indicator type");
+							throw new ArgumentOutOfRangeException(nameof(indicatorDataset.Settings.Type));
 					}
 				table.Rows.Add(rowValues.ToArray());
 			}
@@ -219,7 +221,7 @@ namespace StockManager.Dashboard.Views
 							seriesView = new PointSeriesView();
 							break;
 						default:
-							throw new ArgumentOutOfRangeException("Undefined chart view type");
+							throw new ArgumentOutOfRangeException(nameof(viewSettings.ViewType));
 					}
 
 					var seriesSettings = new IndicatorSeriesColorSettings

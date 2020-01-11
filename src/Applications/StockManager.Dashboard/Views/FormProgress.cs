@@ -1,5 +1,4 @@
-﻿using System;
-using DevExpress.XtraWaitForm;
+﻿using DevExpress.XtraWaitForm;
 
 namespace StockManager.Dashboard.Views
 {
@@ -8,7 +7,7 @@ namespace StockManager.Dashboard.Views
 		public FormProgress()
 		{
 			InitializeComponent();
-			this.progressPanel.AutoHeight = true;
+			progressPanel.AutoHeight = true;
 		}
 
 		#region Overrides
@@ -16,16 +15,12 @@ namespace StockManager.Dashboard.Views
 		public override void SetCaption(string caption)
 		{
 			base.SetCaption(caption);
-			this.progressPanel.Caption = caption;
+			progressPanel.Caption = caption;
 		}
 		public override void SetDescription(string description)
 		{
 			base.SetDescription(description);
-			this.progressPanel.Description = description;
-		}
-		public override void ProcessCommand(Enum cmd, object arg)
-		{
-			base.ProcessCommand(cmd, arg);
+			progressPanel.Description = description;
 		}
 
 		#endregion

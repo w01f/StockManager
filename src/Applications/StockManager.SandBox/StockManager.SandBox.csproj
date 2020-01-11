@@ -234,9 +234,9 @@
       <Project>{2F62A03B-FECC-4CC7-8120-978036F464A6}</Project>
       <Name>StockManager.Infrastructure.Connectors.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.HitBtc.Rest\StockManager.Infrastructure.Connectors.HitBtc.Rest.csproj">
-      <Project>{8F4D878D-04EB-4455-BB04-FAC75D7CA6FC}</Project>
-      <Name>StockManager.Infrastructure.Connectors.HitBtc.Rest</Name>
+    <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Rest\StockManager.Infrastructure.Connectors.Rest.csproj">
+      <Project>{047EFF4D-4BC9-4907-BAE8-5D75314B3B7A}</Project>
+      <Name>StockManager.Infrastructure.Connectors.Rest</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Infrastructure\StockManager.Infrastructure.Common\StockManager.Infrastructure.Common.csproj">
       <Project>{C577F411-B327-4895-9032-A9D8C402025F}</Project>

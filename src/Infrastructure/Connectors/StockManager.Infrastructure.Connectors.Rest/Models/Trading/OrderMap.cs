@@ -3,7 +3,7 @@ using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Common;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
+namespace StockManager.Infrastructure.Connectors.Rest.Models.Trading
 {
 	static class OrderMap
 	{

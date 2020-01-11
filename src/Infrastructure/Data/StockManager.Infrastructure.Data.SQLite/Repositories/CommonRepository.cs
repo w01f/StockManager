@@ -31,7 +31,7 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 		public virtual void Insert(TEntity entity)
 		{
 			if (entity == null)
-				throw new ArgumentNullException("Passed entity is null");
+				throw new ArgumentNullException(nameof(entity));
 			_entities.Add(entity);
 			SaveChanges();
 		}
@@ -39,7 +39,7 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 		public virtual void Insert(IEnumerable<TEntity> entities)
 		{
 			if (entities == null)
-				throw new ArgumentNullException("Passed entity is null");
+				throw new ArgumentNullException(nameof(entities));
 			foreach (var entity in entities)
 				_entities.Add(entity);
 			SaveChanges();
@@ -48,14 +48,14 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 		public virtual void Update(TEntity entity)
 		{
 			if (entity == null)
-				throw new ArgumentNullException("Passed entity is null");
+				throw new ArgumentNullException(nameof(entity));
 			SaveChanges();
 		}
 
 		public virtual void Delete(TEntity entity)
 		{
 			if (entity == null)
-				throw new ArgumentNullException("Passed entity is null");
+				throw new ArgumentNullException(nameof(entity));
 			_entities.Remove(entity);
 			SaveChanges();
 		}

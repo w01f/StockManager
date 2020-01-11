@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market
+namespace StockManager.Infrastructure.Connectors.Rest.Models.Market
 {
 	class OrderBookItem
 	{

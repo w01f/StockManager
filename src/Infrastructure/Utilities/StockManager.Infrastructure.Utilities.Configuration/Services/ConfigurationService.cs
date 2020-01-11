@@ -39,14 +39,14 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Services
 		public TradingSettings GetTradingSettings()
 		{
 			if (_tradingSettings == null)
-				throw new ArgumentNullException("Trading settings are not initialized");
+				throw new ArgumentNullException(nameof(_tradingSettings));
 			return JsonConvert.DeserializeObject<TradingSettings>(JsonConvert.SerializeObject(_tradingSettings));
 		}
 
 		public void UpdateTradingSettings(TradingSettings newSettings)
 		{
 			if (_tradingSettings == null)
-				throw new ArgumentNullException("Trading settings are not initialized");
+				throw new ArgumentNullException(nameof(_tradingSettings));
 
 			_tradingSettings.QuoteCurrencies = newSettings.QuoteCurrencies;
 			_tradingSettings.Period = newSettings.Period;
@@ -60,21 +60,21 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Services
 		public AnalysisSettings GetAnalysisSettings()
 		{
 			if (_analysisSettings == null)
-				throw new ArgumentNullException("Analysis settings are not initialized");
+				throw new ArgumentNullException(nameof(_analysisSettings));
 			return JsonConvert.DeserializeObject<AnalysisSettings>(JsonConvert.SerializeObject(_analysisSettings));
 		}
 
 		public ExchangeConnectionSettings GetExchangeConnectionSettings()
 		{
 			if (_exchangeConnectionSettings == null)
-				throw new ArgumentNullException("Exchange Connection settings are not initialized");
+				throw new ArgumentNullException(nameof(_exchangeConnectionSettings));
 			return JsonConvert.DeserializeObject<ExchangeConnectionSettings>(JsonConvert.SerializeObject(_exchangeConnectionSettings));
 		}
 
 		public DatabaseConnectionSettings GetDatabaseConnectionSettings()
 		{
 			if (_databaseConnectionSettings == null)
-				throw new ArgumentNullException("Database Connection settings are not initialized");
+				throw new ArgumentNullException(nameof(_databaseConnectionSettings));
 			return JsonConvert.DeserializeObject<DatabaseConnectionSettings>(JsonConvert.SerializeObject(_databaseConnectionSettings));
 		}
 	}

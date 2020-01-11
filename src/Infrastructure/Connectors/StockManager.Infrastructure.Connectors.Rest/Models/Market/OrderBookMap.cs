@@ -2,7 +2,7 @@
 using System.Linq;
 using StockManager.Infrastructure.Common.Enums;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market
+namespace StockManager.Infrastructure.Connectors.Rest.Models.Market
 {
 	static class OrderBookMap
 	{

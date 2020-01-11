@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
+namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
 	class ApiError
 	{

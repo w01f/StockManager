@@ -46,7 +46,7 @@
     <ProjectReference Include="..\..\Infrastructure\Analysis\StockManager.Infrastructure.Analysis.Trady\StockManager.Infrastructure.Analysis.Trady.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Business\StockManager.Infrastructure.Business.Collector\StockManager.Infrastructure.Business.Collector.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
-    <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.HitBtc.Rest\StockManager.Infrastructure.Connectors.HitBtc.Rest.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Rest\StockManager.Infrastructure.Connectors.Rest.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Data\StockManager.Infrastructure.Data.SQLite\StockManager.Infrastructure.Data.SQLite.csproj" />
   </ItemGroup>
 </Project>

@@ -5,6 +5,7 @@ using StockManager.Domain.Core.Entities.Trading;
 using StockManager.Infrastructure.Data.SQLite.Mappers;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
+// ReSharper disable ObjectCreationAsStatement
 namespace StockManager.Infrastructure.Data.SQLite
 {
 	public class SQLiteDataContext : DbContext

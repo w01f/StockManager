@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using RestSharp;
 using StockManager.Infrastructure.Connectors.Common.Common;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
+namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
 	static class ApiExtensions
 	{

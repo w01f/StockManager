@@ -6,7 +6,7 @@ using RestSharp;
 using RestSharp.Authenticators;
 using StockManager.Infrastructure.Connectors.Common.Common;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection
+namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
 	class ApiConnection
 	{

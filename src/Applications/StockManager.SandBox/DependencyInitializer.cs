@@ -1,6 +1,6 @@
 ﻿using Ninject.Modules;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
+using StockManager.Infrastructure.Connectors.Rest.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.SandBox

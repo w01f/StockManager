@@ -6,7 +6,7 @@ namespace StockManager.BackTestDataCollector
 {
 	class Program
 	{
-		static int Main(string[] args)
+		static int Main()
 		{
 			CompositionRoot.Initialize(new DependencyInitializer());
 			var collectorService = CompositionRoot.Resolve<CollectorService>();

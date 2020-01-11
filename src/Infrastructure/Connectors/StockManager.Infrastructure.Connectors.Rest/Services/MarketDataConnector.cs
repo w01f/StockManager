@@ -6,11 +6,10 @@ using RestSharp;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market;
-using OrderBookItem = StockManager.Infrastructure.Common.Models.Market.OrderBookItem;
+using StockManager.Infrastructure.Connectors.Rest.Connection;
+using StockManager.Infrastructure.Connectors.Rest.Models.Market;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
+namespace StockManager.Infrastructure.Connectors.Rest.Services
 {
 	public class MarketDataConnector : IMarketDataConnector
 	{
@@ -94,7 +93,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 			return candles;
 		}
 
-		public async Task<IList<OrderBookItem>> GetOrderBook(string currencyPairId, int limit)
+		public async Task<IList<Infrastructure.Common.Models.Market.OrderBookItem>> GetOrderBook(string currencyPairId, int limit)
 		{
 			var connection = new ApiConnection();
 			var request = new RestRequest(String.Format("public/orderbook/{0}", currencyPairId), Method.GET);
@@ -107,7 +106,7 @@ namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
 				.ExtractData<OrderBook>()
 				?.ToOuterModel();
 
-			return orderBookItems ?? new OrderBookItem[] { };
+			return orderBookItems ?? new Infrastructure.Common.Models.Market.OrderBookItem[] { };
 		}
 
 		public async Task<IList<Infrastructure.Common.Models.Market.Ticker>> GetTickers()

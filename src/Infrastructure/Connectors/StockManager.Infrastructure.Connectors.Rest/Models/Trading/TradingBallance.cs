@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading
+namespace StockManager.Infrastructure.Connectors.Rest.Models.Trading
 {
 	public class TradingBallance
 	{

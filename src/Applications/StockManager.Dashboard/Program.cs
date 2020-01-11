@@ -18,7 +18,7 @@ namespace StockManager.Dashboard
 			CompositionRoot.Initialize(new DependencyInitializer());
 
 			CompositionRoot.Resolve<ConfigurationService>()
-				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly().Location), "Settings"));
+				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location) ?? throw new InvalidOperationException(), "Settings"));
 
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);

@@ -17,9 +17,9 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 using StockManager.Infrastructure.Utilities.Logging.Models.Errors;
 using StockManager.Infrastructure.Utilities.Logging.Services;
 
-namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Management
+namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
-	public class ManagementService
+	public class WebAPITradingController: ITradingController
 	{
 		private readonly IMarketDataConnector _marketDataConnector;
 		private readonly ITradingDataConnector _tradingDataConnector;
@@ -30,7 +30,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 		private readonly ConfigurationService _configurationService;
 		private readonly ILoggingService _loggingService;
 
-		public ManagementService(IMarketDataConnector marketDataConnector,
+		public WebAPITradingController(IMarketDataConnector marketDataConnector,
 			ITradingDataConnector tradingDataConnector,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			IMarketPendingPositionAnalysisService marketPendingPositionAnalysisService,
@@ -49,7 +49,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Manageme
 			_loggingService = loggingService;
 		}
 
-		public async Task RunTradingIteration()
+		public async Task StartTrading()
 		{
 			try
 			{

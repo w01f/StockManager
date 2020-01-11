@@ -6,11 +6,10 @@ using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewP
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
-using StockManager.Infrastructure.Business.Trading.Services.Trading.Management;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.Fake.Services;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Services;
+using StockManager.Infrastructure.Connectors.Rest.Services;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -59,8 +58,8 @@ namespace StockManager.TradingBot
 			Bind<IOrdersService>()
 				.To<OrdersService>();
 
-			Bind<ManagementService>()
-				.ToSelf();
+			Bind<ITradingController>()
+				.To<WebAPITradingController>();
 		}
 	}
 }

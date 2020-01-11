@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using DevExpress.XtraBars.Navigation;
 using DevExpress.XtraBars.Ribbon;
@@ -31,6 +30,7 @@ namespace StockManager.Dashboard.Views
 		}
 
 		#region Methods
+/*
 		private async Task LoadCurrencyPairs()
 		{
 			try
@@ -69,6 +69,7 @@ namespace StockManager.Dashboard.Views
 				splashScreenManager.CloseWaitForm();
 			}
 		}
+*/
 		#endregion
 
 		#region Event Handlers

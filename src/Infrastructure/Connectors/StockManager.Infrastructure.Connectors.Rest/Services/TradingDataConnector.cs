@@ -5,11 +5,11 @@ using System.Threading.Tasks;
 using RestSharp;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Connection;
-using StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Trading;
+using StockManager.Infrastructure.Connectors.Rest.Connection;
+using StockManager.Infrastructure.Connectors.Rest.Models.Trading;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Services
+namespace StockManager.Infrastructure.Connectors.Rest.Services
 {
 	public class TradingDataConnector : ITradingDataConnector
 	{

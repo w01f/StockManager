@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
 using System;
 
+// ReSharper disable RedundantArgumentDefaultValue
 namespace StockManager.Infrastructure.Data.SQLite.Migrations
 {
     public partial class InitialCreate : Migration

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace StockManager.Infrastructure.Connectors.HitBtc.Rest.Models.Market
+namespace StockManager.Infrastructure.Connectors.Rest.Models.Market
 {
 	static class TickerMap
 	{
