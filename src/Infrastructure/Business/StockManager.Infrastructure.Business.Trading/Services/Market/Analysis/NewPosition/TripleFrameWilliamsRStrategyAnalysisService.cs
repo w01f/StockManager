@@ -18,12 +18,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class TripleFrameWilliamRStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
 		public TripleFrameWilliamRStrategyAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataConnector marketDataConnector,
+			IMarketDataRestConnector marketDataRestConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
 			CandleLoadingService = candleLoadingService;
-			MarketDataConnector = marketDataConnector;
+			MarketDataRestConnector = marketDataRestConnector;
 			IndicatorComputingService = indicatorComputingService;
 			ConfigurationService = configurationService;
 		}
@@ -39,7 +39,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
 					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var orderBookBidItems = (await MarketDataConnector.GetOrderBook(currencyPair.Id, 5))
+					var orderBookBidItems = (await MarketDataRestConnector.GetOrderBook(currencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
 
@@ -57,7 +57,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					buyPositionInfo.OpenPrice = topMeaningfulBidPrice;
 
-					var orderBookAskItems = (await MarketDataConnector.GetOrderBook(currencyPair.Id, 5))
+					var orderBookAskItems = (await MarketDataRestConnector.GetOrderBook(currencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Ask)
 						.ToList();
 

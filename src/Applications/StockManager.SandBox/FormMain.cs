@@ -10,8 +10,8 @@ namespace StockManager.SandBox
 {
 	public partial class FormMain : Form
 	{
-		private readonly IMarketDataConnector _marketDataConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
+		private readonly ITradingDataRestConnector _tradingDataRestConnector;
 
 		public FormMain()
 		{
@@ -20,16 +20,16 @@ namespace StockManager.SandBox
 
 		[Inject]
 		public FormMain(
-			IMarketDataConnector marketDataConnector,
-			ITradingDataConnector tradingDataConnector) : this()
+			IMarketDataRestConnector marketDataRestConnector,
+			ITradingDataRestConnector tradingDataRestConnector) : this()
 		{
-			_marketDataConnector = marketDataConnector;
-			_tradingDataConnector = tradingDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
+			_tradingDataRestConnector = tradingDataRestConnector;
 		}
 
 		private async void OnRunTestClick(object sender, EventArgs e)
 		{
-			var currencyPair = (await _marketDataConnector.GetCurrensyPairs()).FirstOrDefault(item => item.Id == "DASHBTC");
+			var currencyPair = (await _marketDataRestConnector.GetCurrensyPairs()).FirstOrDefault(item => item.Id == "DASHBTC");
 
 			var orderId = Guid.NewGuid();
 
@@ -47,11 +47,11 @@ namespace StockManager.SandBox
 				StopPrice = 0
 			};
 
-			var newOrder = await _tradingDataConnector.CreateOrder(initialOrder, true);
+			var newOrder = await _tradingDataRestConnector.CreateOrder(initialOrder, true);
 
-			var cancelledOrder = await _tradingDataConnector.CancelOrder(newOrder);
+			var cancelledOrder = await _tradingDataRestConnector.CancelOrder(newOrder);
 
-			var testOrder = await _tradingDataConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
+			var testOrder = await _tradingDataRestConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
 
 			MessageBox.Show(@"Passed");
 		}

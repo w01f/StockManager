@@ -13,14 +13,14 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Fake.Services
 {
-	public class FakeTradingConnector : ITradingDataConnector
+	public class FakeTradingRestConnector : ITradingDataRestConnector
 	{
 		private readonly IRepository<Domain.Core.Entities.Trading.Order> _orderRepository;
 		private readonly IRepository<Domain.Core.Entities.Trading.TradingBallance> _tradingBallanceRepository;
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly ConfigurationService _configurationService;
 
-		public FakeTradingConnector(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
+		public FakeTradingRestConnector(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
 			IRepository<Domain.Core.Entities.Trading.TradingBallance> tradingBallanceRepository,
 			CandleLoadingService candleLoadingService,
 			ConfigurationService configurationService)

@@ -5,7 +5,7 @@ using StockManager.Infrastructure.Common.Models.Market;
 
 namespace StockManager.Infrastructure.Connectors.Common.Services
 {
-	public interface IMarketDataConnector
+	public interface IMarketDataRestConnector
 	{
 		Task<IList<CurrencyPair>> GetCurrensyPairs();
 		Task<CurrencyPair> GetCurrensyPair(string id);

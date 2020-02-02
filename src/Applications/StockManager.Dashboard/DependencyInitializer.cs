@@ -7,7 +7,7 @@ using StockManager.Infrastructure.Analysis.Trady.Services;
 using StockManager.Infrastructure.Business.Chart.Services;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.Rest.Services;
+using StockManager.Infrastructure.Connectors.Rest.Services.HitBtc;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -29,8 +29,8 @@ namespace StockManager.Dashboard
 			Bind(typeof(IRepository<>))
 				.To(typeof(CommonRepository<>));
 
-			Bind<IMarketDataConnector>()
-				.To<MarketDataConnector>();
+			Bind<IMarketDataRestConnector>()
+				.To<MarketDataRestConnector>();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();

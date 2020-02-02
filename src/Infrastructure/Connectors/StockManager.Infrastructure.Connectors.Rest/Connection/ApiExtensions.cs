@@ -7,7 +7,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
 	static class ApiExtensions
 	{
-		public static void Configure(this RestRequest target)
+		public static void ConfigureRequest(this RestRequest target)
 		{
 			target.AddHeader("Content-Type", "application/json");
 			target.AddHeader("Accept", "*/*");
@@ -15,7 +15,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Connection
 			target.RequestFormat = DataFormat.Json;
 		}
 
-		public static TData ExtractData<TData>(this IRestResponse target)
+		public static TData ExtractResponseData<TData>(this IRestResponse target)
 		{
 			try
 			{
@@ -26,7 +26,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Connection
 			}
 			catch (JsonException e)
 			{
-				throw new ParseResponceException(e, target?.Content);
+				throw new ParseResponseException(e, target?.Content);
 			}
 		}
 	}

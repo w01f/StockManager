@@ -19,17 +19,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class PendingPositionWilliamsRAnalysisService : IMarketPendingPositionAnalysisService
 	{
 		private readonly CandleLoadingService _candleLoadingService;
-		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly ConfigurationService _configurationService;
 
 		public PendingPositionWilliamsRAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataConnector marketDataConnector,
+			IMarketDataRestConnector marketDataRestConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
 			_candleLoadingService = candleLoadingService;
-			_marketDataConnector = marketDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
 			_indicatorComputingService = indicatorComputingService;
 			_configurationService = configurationService;
 		}
@@ -138,7 +138,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				decimal openPrice;
 				if (activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
 				{
-					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
+					var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
 
@@ -154,7 +154,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 						topBidPrice :
 						(topBidPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize);
 
-					var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
+					var orderBookAskItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Ask)
 						.ToList();
 
@@ -173,7 +173,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				{
 					stopOpenPrice = 0;
 
-					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
+					var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
 						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
 

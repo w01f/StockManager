@@ -18,12 +18,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class TripleFrameRSIStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
 		public TripleFrameRSIStrategyAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataConnector marketDataConnector,
+			IMarketDataRestConnector marketDataRestConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
 			CandleLoadingService = candleLoadingService;
-			MarketDataConnector = marketDataConnector;
+			MarketDataRestConnector = marketDataRestConnector;
 			IndicatorComputingService = indicatorComputingService;
 			ConfigurationService = configurationService;
 		}

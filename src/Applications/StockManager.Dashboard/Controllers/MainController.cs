@@ -8,17 +8,17 @@ namespace StockManager.Dashboard.Controllers
 {
 	public class MainController
 	{
-		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
 
 		[Inject]
-		public MainController(IMarketDataConnector marketDataConnector)
+		public MainController(IMarketDataRestConnector marketDataRestConnector)
 		{
-			_marketDataConnector = marketDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
 		}
 
 		public async Task<IList<CurrencyPair>> GetCurrencyPairs()
 		{
-			return await _marketDataConnector.GetCurrensyPairs();
+			return await _marketDataRestConnector.GetCurrensyPairs();
 		}
 	}
 }

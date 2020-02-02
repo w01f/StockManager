@@ -6,7 +6,7 @@ using StockManager.Infrastructure.Common.Models.Trading;
 
 namespace StockManager.Infrastructure.Connectors.Common.Services
 {
-	public interface ITradingDataConnector
+	public interface ITradingDataRestConnector
 	{
 		Task<TradingBallance> GetTradingBallnce(string currencyId);
 		Task<IList<Order>> GetActiveOrders(CurrencyPair currencyPair);

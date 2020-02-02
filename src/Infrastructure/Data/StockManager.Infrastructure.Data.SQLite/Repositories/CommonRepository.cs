@@ -18,9 +18,9 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 			_entities = context.Set<TEntity>();
 		}
 
-		public virtual IEnumerable<TEntity> GetAll()
+		public virtual IQueryable<TEntity> GetAll()
 		{
-			return _entities.AsEnumerable();
+			return _entities.AsQueryable();
 		}
 
 		public virtual TEntity Get(Int64 id)

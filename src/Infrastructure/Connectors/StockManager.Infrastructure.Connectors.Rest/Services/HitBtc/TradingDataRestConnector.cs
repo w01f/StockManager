@@ -9,22 +9,22 @@ using StockManager.Infrastructure.Connectors.Rest.Connection;
 using StockManager.Infrastructure.Connectors.Rest.Models.Trading;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
-namespace StockManager.Infrastructure.Connectors.Rest.Services
+namespace StockManager.Infrastructure.Connectors.Rest.Services.HitBtc
 {
-	public class TradingDataConnector : ITradingDataConnector
+	public class TradingDataRestConnector : ITradingDataRestConnector
 	{
 		private readonly ConfigurationService _configurationService;
 
-		public TradingDataConnector(ConfigurationService configurationService)
+		public TradingDataRestConnector(ConfigurationService configurationService)
 		{
 			_configurationService = configurationService;
 		}
 
 		public async Task<Infrastructure.Common.Models.Trading.TradingBallance> GetTradingBallnce(string currencyId)
 		{
-			var connection = new ApiConnection();
+			var connection = new HitBtcConnection();
 			var request = new RestRequest("trading/balance", Method.GET);
-			request.Configure();
+			request.ConfigureRequest();
 
 			var exchangeConnectionSettings = _configurationService.GetExchangeConnectionSettings();
 
@@ -34,7 +34,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 				exchangeConnectionSettings.SecretKey);
 
 			var tradingBallance = response
-				.ExtractData<TradingBallance[]>()
+				.ExtractResponseData<TradingBallance[]>()
 				.Where(entity => String.Equals(entity.CurrencyId, currencyId, StringComparison.OrdinalIgnoreCase))
 				.Select(entity => entity.ToOuterModel())
 				.FirstOrDefault();
@@ -43,9 +43,9 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 
 		public async Task<IList<Infrastructure.Common.Models.Trading.Order>> GetActiveOrders(CurrencyPair currencyPair)
 		{
-			var connection = new ApiConnection();
+			var connection = new HitBtcConnection();
 			var request = new RestRequest("order", Method.GET);
-			request.Configure();
+			request.ConfigureRequest();
 
 			var exchangeConnectionSettings = _configurationService.GetExchangeConnectionSettings();
 
@@ -55,7 +55,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 				exchangeConnectionSettings.SecretKey);
 
 			var orders = response
-				.ExtractData<Order[]>()
+				.ExtractResponseData<Order[]>()
 				.Where(order => order.CurrencyPairId == currencyPair.Id)
 				.Select(entity => entity.ToOuterModel(currencyPair))
 				.ToList();
@@ -65,9 +65,9 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 
 		public async Task<Infrastructure.Common.Models.Trading.Order> GetOrderFromHistory(Guid clientOrderId, CurrencyPair currencyPair)
 		{
-			var connection = new ApiConnection();
+			var connection = new HitBtcConnection();
 			var request = new RestRequest("history/order", Method.GET);
-			request.Configure();
+			request.ConfigureRequest();
 
 			request.AddParameter("clientOrderId", clientOrderId.ToString("N"));
 
@@ -79,7 +79,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 				exchangeConnectionSettings.SecretKey);
 
 			var order = response
-				.ExtractData<Order[]>()
+				.ExtractResponseData<Order[]>()
 				.Select(entity => entity.ToOuterModel(currencyPair))
 				.FirstOrDefault();
 			return order;
@@ -89,9 +89,9 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 		{
 			var innerModel = initialOrder.ToInnerModel();
 
-			var connection = new ApiConnection();
+			var connection = new HitBtcConnection();
 			var request = new RestRequest("order", Method.POST);
-			request.Configure();
+			request.ConfigureRequest();
 
 			request.AddJsonBody(new
 			{
@@ -114,7 +114,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 				exchangeConnectionSettings.SecretKey);
 
 			var responseOrder = response
-				.ExtractData<Order>()
+				.ExtractResponseData<Order>()
 				?.ToOuterModel(initialOrder.CurrencyPair);
 			return responseOrder;
 		}
@@ -123,9 +123,9 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 		{
 			var innerModel = initialOrder.ToInnerModel();
 
-			var connection = new ApiConnection();
+			var connection = new HitBtcConnection();
 			var request = new RestRequest(String.Format("order/{0}", innerModel.ClientId), Method.DELETE);
-			request.Configure();
+			request.ConfigureRequest();
 
 			var exchangeConnectionSettings = _configurationService.GetExchangeConnectionSettings();
 
@@ -135,7 +135,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services
 				exchangeConnectionSettings.SecretKey);
 
 			var responseOrder = response
-				.ExtractData<Order>()
+				.ExtractResponseData<Order>()
 				?.ToOuterModel(initialOrder.CurrencyPair);
 			return responseOrder;
 		}

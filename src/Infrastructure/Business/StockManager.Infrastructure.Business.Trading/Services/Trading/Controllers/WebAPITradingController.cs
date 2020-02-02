@@ -21,8 +21,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 {
 	public class WebAPITradingController: ITradingController
 	{
-		private readonly IMarketDataConnector _marketDataConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
+		private readonly ITradingDataRestConnector _tradingDataRestConnector;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly IMarketPendingPositionAnalysisService _marketPendingPositionAnalysisService;
 		private readonly IMarketOpenPositionAnalysisService _marketOpenPositionAnalysisService;
@@ -30,8 +30,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 		private readonly ConfigurationService _configurationService;
 		private readonly ILoggingService _loggingService;
 
-		public WebAPITradingController(IMarketDataConnector marketDataConnector,
-			ITradingDataConnector tradingDataConnector,
+		public WebAPITradingController(IMarketDataRestConnector marketDataRestConnector,
+			ITradingDataRestConnector tradingDataRestConnector,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			IMarketPendingPositionAnalysisService marketPendingPositionAnalysisService,
 			IMarketOpenPositionAnalysisService marketOpenPositionAnalysisService,
@@ -39,8 +39,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			ConfigurationService configurationService,
 			ILoggingService loggingService)
 		{
-			_marketDataConnector = marketDataConnector;
-			_tradingDataConnector = tradingDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
+			_tradingDataRestConnector = tradingDataRestConnector;
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 			_marketPendingPositionAnalysisService = marketPendingPositionAnalysisService;
 			_marketOpenPositionAnalysisService = marketOpenPositionAnalysisService;
@@ -101,7 +101,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 				{
 					var tradingSettings = _configurationService.GetTradingSettings();
 
-					var allCurrencyPairs = await _marketDataConnector.GetCurrensyPairs();
+					var allCurrencyPairs = await _marketDataRestConnector.GetCurrensyPairs();
 
 					var baseCurrencyPairs = allCurrencyPairs
 						.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId =>
@@ -109,7 +109,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 										!activeOrderPairs.Any(orderPair => String.Equals(orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId, item.BaseCurrencyId))
 						);
 
-					var allTickers = await _marketDataConnector.GetTickers();
+					var allTickers = await _marketDataRestConnector.GetTickers();
 					var tradingTickers = allTickers
 						.Where(tickerItem =>
 							baseCurrencyPairs.Any(currencyPairItem => String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id)))
@@ -149,7 +149,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					foreach (var currencyPair in baseCurrencyPairs.Where(currencyPairItem => tradingTickers.Any(tickerItem =>
 						String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id, StringComparison.OrdinalIgnoreCase))).ToList())
 					{
-						var tradingBalance = await _tradingDataConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
+						var tradingBalance = await _tradingDataRestConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
 						if (tradingBalance?.Available <= 0)
 							continue;
 
@@ -173,7 +173,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 				});
 				throw;
 			}
-			catch (ParseResponceException e)
+			catch (ParseResponseException e)
 			{
 				_loggingService.LogAction(new ErrorAction
 				{

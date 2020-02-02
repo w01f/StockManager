@@ -8,13 +8,18 @@ using StockManager.Infrastructure.Connectors.Common.Common;
 
 namespace StockManager.Infrastructure.Connectors.Rest.Connection
 {
-	class ApiConnection
+	abstract class ApiConnection
 	{
-		private const string BaseUrl = "https://api.hitbtc.com/api/2";
+		private readonly string _baseUrl;
 
+		protected ApiConnection(string baseUrl)
+		{
+			_baseUrl = baseUrl;
+		}
+		
 		public async Task<IRestResponse> DoRequest(RestRequest request, string apiKey = null, string secretKey = null)
 		{
-			var client = new RestClient(BaseUrl);
+			var client = new RestClient(_baseUrl);
 
 			if (!String.IsNullOrEmpty(apiKey) && !String.IsNullOrEmpty(secretKey))
 				client.Authenticator = new HttpBasicAuthenticator(apiKey, secretKey);
@@ -26,7 +31,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Connection
 			if (response.ErrorException != null)
 				throw new ConnectorException("Error retrieving response.  Check inner details for more info.", response.ErrorException);
 
-			var error = response.ExtractData<ApiError>();
+			var error = response.ExtractResponseData<ApiError>();
 			throw new ConnectorException(String.Format("{0}. {1}{3}{2}",
 				error.Data.Message,
 				error.Data.Description,

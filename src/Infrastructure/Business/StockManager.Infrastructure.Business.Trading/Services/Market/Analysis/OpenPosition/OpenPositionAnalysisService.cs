@@ -19,17 +19,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class OpenPositionAnalysisService : IMarketOpenPositionAnalysisService
 	{
 		private readonly CandleLoadingService _candleLoadingService;
-		private readonly IMarketDataConnector _marketDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly ConfigurationService _configurationService;
 
 		public OpenPositionAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataConnector marketDataConnector,
+			IMarketDataRestConnector marketDataRestConnector,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
 			_candleLoadingService = candleLoadingService;
-			_marketDataConnector = marketDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
 			_indicatorComputingService = indicatorComputingService;
 			_configurationService = configurationService;
 		}
@@ -156,9 +156,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					currentWilliamsRValue?.Value > 80 &&
 					currentWilliamsRValue.Value > previousWilliamsRValue?.Value))
 			{
-				var updatePositionInfo = new UpdateClosePositionInfo { StopLossPrice = ((FixStopLossInfo)newPositionInfo)?.StopLossPrice ?? initialPositionInfo.StopLossPrice };
+				var updatePositionInfo = new UpdateClosePositionInfo
+				{
+					StopLossPrice = ((FixStopLossInfo)newPositionInfo)?.StopLossPrice ?? initialPositionInfo.StopLossPrice
+				};
 
-				var orderBookAskItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
+				var orderBookAskItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
 					.Where(item => item.Type == OrderBookItemType.Ask)
 					.ToList();
 
@@ -178,7 +181,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice - activeOrderPair.ClosePositionOrder.CurrencyPair.TickSize;
 
-					var orderBookBidItems = (await _marketDataConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
+					var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.ClosePositionOrder.CurrencyPair.Id, 5))
 						.Where(item => item.Type == OrderBookItemType.Bid)
 						.ToList();
 

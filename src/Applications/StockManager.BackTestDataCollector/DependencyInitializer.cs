@@ -4,7 +4,7 @@ using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Analysis.Trady.Services;
 using StockManager.Infrastructure.Business.Collector.Services;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.Rest.Services;
+using StockManager.Infrastructure.Connectors.Rest.Services.HitBtc;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
 
@@ -22,8 +22,8 @@ namespace StockManager.BackTestDataCollector
 			Bind(typeof(IRepository<>))
 				.To(typeof(CommonRepository<>));
 
-			Bind<IMarketDataConnector>()
-				.To<MarketDataConnector>();
+			Bind<IMarketDataRestConnector>()
+				.To<MarketDataRestConnector>();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();

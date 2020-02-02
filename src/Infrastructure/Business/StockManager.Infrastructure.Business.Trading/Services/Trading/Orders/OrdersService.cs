@@ -30,24 +30,24 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 	{
 		private readonly IRepository<Domain.Core.Entities.Trading.Order> _orderRepository;
 		private readonly IRepository<OrderHistory> _orderHistoryRepository;
-		private readonly IMarketDataConnector _marketDataConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IMarketDataRestConnector _marketDataRestConnector;
+		private readonly ITradingDataRestConnector _tradingDataRestConnector;
 		private readonly ConfigurationService _configurationService;
 		private readonly ILoggingService _loggingService;
 		private readonly TradingEventsObserver _tradingEventsObserver;
 
 		public OrdersService(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
 			IRepository<OrderHistory> orderHistoryRepository,
-			IMarketDataConnector marketDataConnector,
-			ITradingDataConnector tradingDataConnector,
+			IMarketDataRestConnector marketDataRestConnector,
+			ITradingDataRestConnector tradingDataRestConnector,
 			ConfigurationService configurationService,
 			ILoggingService loggingService,
 			TradingEventsObserver tradingEventsObserver)
 		{
 			_orderRepository = orderRepository;
 			_orderHistoryRepository = orderHistoryRepository;
-			_marketDataConnector = marketDataConnector;
-			_tradingDataConnector = tradingDataConnector;
+			_marketDataRestConnector = marketDataRestConnector;
+			_tradingDataRestConnector = tradingDataRestConnector;
 			_configurationService = configurationService;
 			_loggingService = loggingService;
 			_tradingEventsObserver = tradingEventsObserver;
@@ -64,15 +64,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			foreach (var storedOrderEntity in storedOrderPairEntities)
 			{
-				var currencyPair = await _marketDataConnector.GetCurrensyPair(storedOrderEntity.Item1.CurrencyPair);
+				var currencyPair = await _marketDataRestConnector.GetCurrensyPair(storedOrderEntity.Item1.CurrencyPair);
 
-				var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
+				var activeOrders = await _tradingDataRestConnector.GetActiveOrders(currencyPair);
 
 				var openPositionOrder = storedOrderEntity.Item1.ToModel(currencyPair);
 				if (openPositionOrder.OrderStateType != OrderStateType.Filled)
 				{
 					var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
-						await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, currencyPair);
+						await _tradingDataRestConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, currencyPair);
 
 					if (serverSideOpenPositionOrder == null)
 						throw new BusinessException("Open position order not found");
@@ -90,7 +90,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							}
 							break;
 						case OrderStateType.PartiallyFilled:
-							await _tradingDataConnector.CancelOrder(openPositionOrder);
+							await _tradingDataRestConnector.CancelOrder(openPositionOrder);
 							openPositionOrder.OrderStateType = OrderStateType.Filled;
 							_orderRepository.Update(openPositionOrder.ToEntity(storedOrderEntity.Item1));
 							_loggingService.LogAction(openPositionOrder.ToLogAction(OrderActionType.Fill));
@@ -131,11 +131,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				{
 					var stopLossOrder = storedOrderEntity.Item3.ToModel(currencyPair);
 					var serverSideStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item3.ClientId) ??
-						await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item3.ClientId, currencyPair);
+						await _tradingDataRestConnector.GetOrderFromHistory(storedOrderEntity.Item3.ClientId, currencyPair);
 
 					if (serverSideStopLossOrder == null)
 					{
-						var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(stopLossOrder.CurrencyPair.BaseCurrencyId);
+						var baseTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(stopLossOrder.CurrencyPair.BaseCurrencyId);
 						if (baseTradingBalance?.Available <= 0)
 							throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", stopLossOrder.CurrencyPair.Id));
 
@@ -143,7 +143,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						if (stopLossOrder.Quantity == 0)
 							throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", stopLossOrder.CurrencyPair.Id));
 
-						serverSideStopLossOrder = await _tradingDataConnector.CreateOrder(stopLossOrder, false);
+						serverSideStopLossOrder = await _tradingDataRestConnector.CreateOrder(stopLossOrder, false);
 						SyncOrderSettingsWithServer(stopLossOrder, serverSideStopLossOrder);
 
 						_orderRepository.Update(stopLossOrder.ToEntity(storedOrderEntity.Item3));
@@ -156,11 +156,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					if (closePositionOrder.OrderStateType != OrderStateType.Pending)
 					{
 						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item2.ClientId) ??
-															await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item2.ClientId, currencyPair);
+															await _tradingDataRestConnector.GetOrderFromHistory(storedOrderEntity.Item2.ClientId, currencyPair);
 
 						if (serverSideClosePositionOrder == null)
 						{
-							var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(closePositionOrder.CurrencyPair.BaseCurrencyId);
+							var baseTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(closePositionOrder.CurrencyPair.BaseCurrencyId);
 							if (baseTradingBalance?.Available <= 0)
 								throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", closePositionOrder.CurrencyPair.Id));
 							do
@@ -177,7 +177,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 								try
 								{
-									serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(closePositionOrder, true);
+									serverSideClosePositionOrder = await _tradingDataRestConnector.CreateOrder(closePositionOrder, true);
 								}
 								catch
 								{
@@ -193,7 +193,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						{
 							try
 							{
-								serverSideStopLossOrder = await _tradingDataConnector.CancelOrder(stopLossOrder);
+								serverSideStopLossOrder = await _tradingDataRestConnector.CancelOrder(stopLossOrder);
 								SyncOrderSettingsWithServer(stopLossOrder, serverSideStopLossOrder);
 							}
 							catch (Exception e)
@@ -205,7 +205,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						else if (stopLossOrder.OrderStateType == OrderStateType.Filled &&
 								closePositionOrder.OrderStateType != OrderStateType.Cancelled)
 						{
-							serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(closePositionOrder);
+							serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(closePositionOrder);
 							SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
 						}
 						else if (closePositionOrder.OrderStateType != OrderStateType.Filled &&
@@ -213,7 +213,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						{
 							if (closePositionOrder.OrderStateType != OrderStateType.Cancelled)
 							{
-								serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(closePositionOrder);
+								serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(closePositionOrder);
 								SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
 							}
 
@@ -226,12 +226,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							immediateCloseOrder.OrderStateType = OrderStateType.New;
 							immediateCloseOrder.TimeInForce = OrderTimeInForceType.GoodTillCancelled;
 
-							var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(closePositionOrder.CurrencyPair.BaseCurrencyId);
+							var baseTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(closePositionOrder.CurrencyPair.BaseCurrencyId);
 							immediateCloseOrder.CalculateSellOrderQuantity(baseTradingBalance, tradingSettings);
 							if (immediateCloseOrder.Quantity == 0)
 								throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", immediateCloseOrder.CurrencyPair.Id));
 
-							var serverSideImmediateCloseOrder = await _tradingDataConnector.CreateOrder(immediateCloseOrder, false);
+							var serverSideImmediateCloseOrder = await _tradingDataRestConnector.CreateOrder(immediateCloseOrder, false);
 							if (serverSideImmediateCloseOrder.OrderStateType != OrderStateType.Filled)
 								throw new BusinessException("Unexpected order state found")
 								{
@@ -317,13 +317,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<IList<OrderPair>> GetActiveOrders()
 		{
-			var storedOrderPairs = GenerateOrderPairs(_orderRepository.GetAll()
-				.ToList());
+			var storedOrderPairs = GenerateOrderPairs(_orderRepository.GetAll().ToList());
 
 			var orderPairModels = new List<OrderPair>();
 			foreach (var orderPair in storedOrderPairs)
 			{
-				var currencyPair = await _marketDataConnector.GetCurrensyPair(orderPair.Item1.CurrencyPair);
+				var currencyPair = await _marketDataRestConnector.GetCurrensyPair(orderPair.Item1.CurrencyPair);
 
 				if (currencyPair == null)
 					throw new BusinessException("Currency pair not found")
@@ -341,7 +340,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
 
-			var currencyPair = await _marketDataConnector.GetCurrensyPair(positionInfo.CurrencyPairId);
+			var currencyPair = await _marketDataRestConnector.GetCurrensyPair(positionInfo.CurrencyPairId);
 
 			var now = DateTime.UtcNow;
 
@@ -386,7 +385,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			stopLossOrder.Created = now;
 			stopLossOrder.Updated = now;
 
-			var quoteTradingBalance = await _tradingDataConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
+			var quoteTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
 			if (quoteTradingBalance?.Available <= 0)
 				throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", currencyPair.Id));
 
@@ -409,7 +408,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 				try
 				{
-					serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(openPositionOrder, true);
+					serverSideOpenPositionOrder = await _tradingDataRestConnector.CreateOrder(openPositionOrder, true);
 				}
 				catch (Exception)
 				{
@@ -444,7 +443,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
-				var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+				var serverSideOpenPositionOrder = await _tradingDataRestConnector.CancelOrder(orderPair.OpenPositionOrder);
 				if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed")
 					{
@@ -455,7 +454,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				orderPair.ClosePositionOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
 				orderPair.StopLossOrder.ParentClientId = orderPair.OpenPositionOrder.ClientId;
 
-				var quoteTradingBalance = await _tradingDataConnector.GetTradingBallnce(orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId);
+				var quoteTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(orderPair.OpenPositionOrder.CurrencyPair.QuoteCurrencyId);
 				if (quoteTradingBalance?.Available <= 0)
 					throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", orderPair.OpenPositionOrder.CurrencyPair.Id));
 
@@ -476,7 +475,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 						try
 						{
-							serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
+							serverSideOpenPositionOrder = await _tradingDataRestConnector.CreateOrder(orderPair.OpenPositionOrder, true);
 						}
 						catch
 						{
@@ -511,7 +510,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 						try
 						{
-							serverSideOpenPositionOrder = await _tradingDataConnector.CreateOrder(orderPair.OpenPositionOrder, true);
+							serverSideOpenPositionOrder = await _tradingDataRestConnector.CreateOrder(orderPair.OpenPositionOrder, true);
 						}
 						catch
 						{
@@ -536,7 +535,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					Infrastructure.Common.Models.Trading.Order serverSideClosePositionOrder;
 					if (storedOrderEntity.Item2.OrderStateType != OrderStateType.Pending)
 					{
-						serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+						serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(orderPair.ClosePositionOrder);
 						if (serverSideClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
 							throw new BusinessException("Cancelling order failed")
 							{
@@ -544,7 +543,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							};
 					}
 
-					var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(orderPair.ClosePositionOrder.CurrencyPair.BaseCurrencyId);
+					var baseTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(orderPair.ClosePositionOrder.CurrencyPair.BaseCurrencyId);
 					if (baseTradingBalance?.Available <= 0)
 						throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", orderPair.ClosePositionOrder.CurrencyPair.Id));
 
@@ -568,7 +567,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 							try
 							{
-								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
+								serverSideClosePositionOrder = await _tradingDataRestConnector.CreateOrder(orderPair.ClosePositionOrder, true);
 							}
 							catch
 							{
@@ -597,7 +596,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 							try
 							{
-								serverSideClosePositionOrder = await _tradingDataConnector.CreateOrder(orderPair.ClosePositionOrder, true);
+								serverSideClosePositionOrder = await _tradingDataRestConnector.CreateOrder(orderPair.ClosePositionOrder, true);
 							}
 							catch
 							{
@@ -612,14 +611,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				}
 				else
 				{
-					var serverSideStopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+					var serverSideStopLossOrder = await _tradingDataRestConnector.CancelOrder(orderPair.StopLossOrder);
 					if (serverSideStopLossOrder.OrderStateType != OrderStateType.Cancelled)
 						throw new BusinessException("Cancelling order failed")
 						{
 							Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideStopLossOrder))
 						};
 
-					var baseTradingBalance = await _tradingDataConnector.GetTradingBallnce(orderPair.StopLossOrder.CurrencyPair.BaseCurrencyId);
+					var baseTradingBalance = await _tradingDataRestConnector.GetTradingBallnce(orderPair.StopLossOrder.CurrencyPair.BaseCurrencyId);
 					if (baseTradingBalance?.Available <= 0)
 						throw new BusinessException(String.Format("Trading balance is empty or not available: {0}", orderPair.StopLossOrder.CurrencyPair.Id));
 
@@ -628,7 +627,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", orderPair.StopLossOrder.CurrencyPair.Id));
 
 					orderPair.StopLossOrder.ClientId = Guid.NewGuid();
-					serverSideStopLossOrder = await _tradingDataConnector.CreateOrder(orderPair.StopLossOrder, false);
+					serverSideStopLossOrder = await _tradingDataRestConnector.CreateOrder(orderPair.StopLossOrder, false);
 					SyncOrderSettingsWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
 
 					_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item3));
@@ -652,7 +651,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			try
 			{
-				var serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				var serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(orderPair.ClosePositionOrder);
 				if (serverSideClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed")
 					{
@@ -681,7 +680,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			{
 				try
 				{
-					var serverSideOpenPositionOrder = await _tradingDataConnector.CancelOrder(orderPair.OpenPositionOrder);
+					var serverSideOpenPositionOrder = await _tradingDataRestConnector.CancelOrder(orderPair.OpenPositionOrder);
 					if (serverSideOpenPositionOrder.OrderStateType != OrderStateType.Cancelled)
 						throw new BusinessException("Cancelling order failed")
 						{
@@ -694,9 +693,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				{
 					if (e.Message?.Contains("Order not found") ?? false)
 					{
-						var activeOrders = await _tradingDataConnector.GetActiveOrders(orderPair.OpenPositionOrder.CurrencyPair);
+						var activeOrders = await _tradingDataRestConnector.GetActiveOrders(orderPair.OpenPositionOrder.CurrencyPair);
 						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
-								await _tradingDataConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, orderPair.OpenPositionOrder.CurrencyPair);
+								await _tradingDataRestConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, orderPair.OpenPositionOrder.CurrencyPair);
 						SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
 						cancellationInterrupted = true;
 					}
@@ -706,7 +705,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			}
 			else
 			{
-				var serverSideClosePositionOrder = await _tradingDataConnector.CancelOrder(orderPair.ClosePositionOrder);
+				var serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(orderPair.ClosePositionOrder);
 				if (serverSideClosePositionOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed")
 					{
@@ -714,7 +713,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					};
 				SyncOrderSettingsWithServer(orderPair.ClosePositionOrder, serverSideClosePositionOrder);
 
-				var serverSideStopLossOrder = await _tradingDataConnector.CancelOrder(orderPair.StopLossOrder);
+				var serverSideStopLossOrder = await _tradingDataRestConnector.CancelOrder(orderPair.StopLossOrder);
 				if (serverSideStopLossOrder.OrderStateType != OrderStateType.Cancelled)
 					throw new BusinessException("Cancelling order failed")
 					{
@@ -776,7 +775,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		private async Task<decimal> GetNearestBidSupportPrice(CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await _marketDataConnector.GetOrderBook(currencyPair.Id, 20))
+			var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
 				.Where(item => item.Type == OrderBookItemType.Bid)
 				.ToList();
 
@@ -800,7 +799,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		private async Task<decimal> GetNearestAskSupportPrice(CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await _marketDataConnector.GetOrderBook(currencyPair.Id, 20))
+			var orderBookAskItems = (await _marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
 				.Where(item => item.Type == OrderBookItemType.Ask)
 				.ToList();
 
