@@ -1,5 +1,6 @@
 ﻿using System;
 using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.EventArgs;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Common
 {
@@ -10,18 +11,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Common
 		public void RaisePositionChanged(TradingEventType eventType, string details)
 		{
 			PositionChanged?.Invoke(this, new PositionChangedEventArgs(eventType, details));
-		}
-
-		public class PositionChangedEventArgs : EventArgs
-		{
-			public TradingEventType EventType { get; }
-			public string Details { get; }
-
-			public PositionChangedEventArgs(TradingEventType eventType, string details)
-			{
-				Details = details;
-				EventType = eventType;
-			}
 		}
 	}
 }

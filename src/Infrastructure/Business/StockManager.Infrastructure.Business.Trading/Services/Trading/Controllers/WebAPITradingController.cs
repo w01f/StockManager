@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Infrastructure.Business.Trading.Enums;
@@ -49,7 +50,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			_loggingService = loggingService;
 		}
 
-		public async Task StartTrading()
+		public async Task StartTrading(CancellationToken cancellationToken)
 		{
 			try
 			{

@@ -12,14 +12,12 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
-using StockManager.Infrastructure.Common.Enums;
-using StockManager.Infrastructure.Common.Models.Market;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.Services.Extensions.Connectors;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Connectors.Common.Common;
 
@@ -58,7 +56,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			var storedOrders = _orderRepository.GetAll().ToList();
 			if (!storedOrders.Any())
 				return;
-			var storedOrderPairEntities = GenerateOrderPairs(storedOrders);
+			var storedOrderPairEntities = storedOrders.GenerateOrderPairs();
 
 			var tradingSettings = _configurationService.GetTradingSettings();
 
@@ -77,7 +75,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					if (serverSideOpenPositionOrder == null)
 						throw new BusinessException("Open position order not found");
 
-					SyncOrderSettingsWithServer(openPositionOrder, serverSideOpenPositionOrder);
+					openPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 
 					switch (openPositionOrder.OrderStateType)
 					{
@@ -144,13 +142,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							throw new BusinessException(String.Format("Trading balance is not enough to open order: {0}", stopLossOrder.CurrencyPair.Id));
 
 						serverSideStopLossOrder = await _tradingDataRestConnector.CreateOrder(stopLossOrder, false);
-						SyncOrderSettingsWithServer(stopLossOrder, serverSideStopLossOrder);
+						stopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
 
 						_orderRepository.Update(stopLossOrder.ToEntity(storedOrderEntity.Item3));
 						_loggingService.LogAction(stopLossOrder.ToLogAction(OrderActionType.Update));
 					}
 					else
-						SyncOrderSettingsWithServer(stopLossOrder, serverSideStopLossOrder);
+						stopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
 
 					var closePositionOrder = storedOrderEntity.Item2.ToModel(currencyPair);
 					if (closePositionOrder.OrderStateType != OrderStateType.Pending)
@@ -167,7 +165,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							{
 								if (serverSideClosePositionOrder != null)
 								{
-									var nearestAskSupportPrice = await GetNearestAskSupportPrice(closePositionOrder.CurrencyPair);
+									var nearestAskSupportPrice = await _marketDataRestConnector.GetNearestAskSupportPrice(closePositionOrder.CurrencyPair);
 									closePositionOrder.Price = nearestAskSupportPrice - closePositionOrder.CurrencyPair.TickSize;
 								}
 
@@ -186,7 +184,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							} while (serverSideClosePositionOrder == null || serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 						}
 
-						SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
+						closePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
 
 						if (closePositionOrder.OrderStateType == OrderStateType.Filled &&
 							stopLossOrder.OrderStateType != OrderStateType.Cancelled)
@@ -194,7 +192,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							try
 							{
 								serverSideStopLossOrder = await _tradingDataRestConnector.CancelOrder(stopLossOrder);
-								SyncOrderSettingsWithServer(stopLossOrder, serverSideStopLossOrder);
+								stopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
 							}
 							catch (Exception e)
 							{
@@ -206,7 +204,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 								closePositionOrder.OrderStateType != OrderStateType.Cancelled)
 						{
 							serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(closePositionOrder);
-							SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
+							closePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
 						}
 						else if (closePositionOrder.OrderStateType != OrderStateType.Filled &&
 								stopLossOrder.OrderStateType == OrderStateType.Cancelled)
@@ -214,7 +212,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							if (closePositionOrder.OrderStateType != OrderStateType.Cancelled)
 							{
 								serverSideClosePositionOrder = await _tradingDataRestConnector.CancelOrder(closePositionOrder);
-								SyncOrderSettingsWithServer(closePositionOrder, serverSideClosePositionOrder);
+								closePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
 							}
 
 							var immediateCloseOrder = new Infrastructure.Common.Models.Trading.Order();
@@ -317,7 +315,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<IList<OrderPair>> GetActiveOrders()
 		{
-			var storedOrderPairs = GenerateOrderPairs(_orderRepository.GetAll().ToList());
+			var storedOrderPairs = _orderRepository.GetAll().ToList().GenerateOrderPairs();
 
 			var orderPairModels = new List<OrderPair>();
 			foreach (var orderPair in storedOrderPairs)
@@ -398,7 +396,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					openPositionOrder.OrderStateType = OrderStateType.New;
 					openPositionOrder.StopPrice = null;
 
-					var nearestBidSupportPrice = await GetNearestBidSupportPrice(openPositionOrder.CurrencyPair);
+					var nearestBidSupportPrice = await _marketDataRestConnector.GetNearestBidSupportPrice(openPositionOrder.CurrencyPair);
 					openPositionOrder.Price = nearestBidSupportPrice + openPositionOrder.CurrencyPair.TickSize;
 				}
 
@@ -418,7 +416,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 			if (serverSideOpenPositionOrder != null)
 			{
-				SyncOrderSettingsWithServer(openPositionOrder, serverSideOpenPositionOrder);
+				openPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 
 				_orderRepository.Insert(openPositionOrder.ToEntity());
 				_orderRepository.Insert(closePositionOrder.ToEntity());
@@ -436,10 +434,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
 
-			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
+			var storedOrderEntity = _orderRepository.GetAll()
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
-					.ToList())
-				.Single();
+					.ToList()
+					.GenerateOrderPairs()
+					.Single();
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
 			{
@@ -465,7 +464,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					{
 						if (serverSideOpenPositionOrder != null)
 						{
-							var nearestBidSupportPrice = await GetNearestBidSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
+							var nearestBidSupportPrice = await _marketDataRestConnector.GetNearestBidSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
 							orderPair.OpenPositionOrder.Price = nearestBidSupportPrice + orderPair.OpenPositionOrder.CurrencyPair.TickSize;
 						}
 
@@ -500,7 +499,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							orderPair.OpenPositionOrder.OrderStateType = OrderStateType.New;
 							orderPair.OpenPositionOrder.StopPrice = null;
 
-							var nearestBidSupportPrice = await GetNearestBidSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
+							var nearestBidSupportPrice = await _marketDataRestConnector.GetNearestBidSupportPrice(orderPair.OpenPositionOrder.CurrencyPair);
 							orderPair.OpenPositionOrder.Price = nearestBidSupportPrice + orderPair.OpenPositionOrder.CurrencyPair.TickSize;
 						}
 
@@ -518,7 +517,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						}
 					} while (serverSideOpenPositionOrder == null || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired);
 				}
-				SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+				orderPair.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 
 				_orderRepository.Update(orderPair.OpenPositionOrder.ToEntity(storedOrderEntity.Item1));
 				_orderRepository.Update(orderPair.ClosePositionOrder.ToEntity(storedOrderEntity.Item2));
@@ -557,7 +556,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						{
 							if (serverSideClosePositionOrder != null)
 							{
-								var nearestAskSupportPrice = await GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
+								var nearestAskSupportPrice = await _marketDataRestConnector.GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
 								orderPair.ClosePositionOrder.Price = nearestAskSupportPrice - orderPair.ClosePositionOrder.CurrencyPair.TickSize;
 							}
 
@@ -586,7 +585,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 								orderPair.ClosePositionOrder.OrderStateType = OrderStateType.New;
 								orderPair.ClosePositionOrder.StopPrice = null;
 
-								var nearestAskSupportPrice = await GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
+								var nearestAskSupportPrice = await _marketDataRestConnector.GetNearestAskSupportPrice(orderPair.ClosePositionOrder.CurrencyPair);
 								orderPair.ClosePositionOrder.Price = nearestAskSupportPrice - orderPair.ClosePositionOrder.CurrencyPair.TickSize;
 							}
 
@@ -604,7 +603,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							}
 						} while (serverSideClosePositionOrder == null || serverSideClosePositionOrder.OrderStateType == OrderStateType.Expired);
 					}
-					SyncOrderSettingsWithServer(orderPair.ClosePositionOrder, serverSideClosePositionOrder);
+					orderPair.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
 
 					_orderRepository.Update(orderPair.ClosePositionOrder.ToEntity(storedOrderEntity.Item2));
 					_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.Update));
@@ -628,7 +627,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 					orderPair.StopLossOrder.ClientId = Guid.NewGuid();
 					serverSideStopLossOrder = await _tradingDataRestConnector.CreateOrder(orderPair.StopLossOrder, false);
-					SyncOrderSettingsWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
+					orderPair.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
 
 					_orderRepository.Update(orderPair.StopLossOrder.ToEntity(storedOrderEntity.Item3));
 					_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.Update));
@@ -638,10 +637,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task SuspendPosition(OrderPair orderPair)
 		{
-			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
+			var storedOrderEntity = _orderRepository.GetAll()
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
-					.ToList())
-				.Single();
+					.ToList()
+					.GenerateOrderPairs()
+					.Single();
 
 			if (orderPair.OpenPositionOrder.OrderStateType != OrderStateType.Filled)
 				return;
@@ -670,10 +670,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task CancelPosition(OrderPair orderPair)
 		{
-			var storedOrderEntity = GenerateOrderPairs(_orderRepository.GetAll()
+			var storedOrderEntity = _orderRepository.GetAll()
 					.Where(entity => String.Equals(entity.CurrencyPair, orderPair.OpenPositionOrder.CurrencyPair.Id, StringComparison.OrdinalIgnoreCase))
-					.ToList())
-				.Single();
+					.ToList()
+					.GenerateOrderPairs()
+					.Single();
 			var cancellationInterrupted = false;
 
 			if (storedOrderEntity.Item1.OrderStateType != OrderStateType.Filled)
@@ -687,7 +688,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 							Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideOpenPositionOrder))
 						};
 
-					SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+					orderPair.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 				}
 				catch (ConnectorException e)
 				{
@@ -696,7 +697,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						var activeOrders = await _tradingDataRestConnector.GetActiveOrders(orderPair.OpenPositionOrder.CurrencyPair);
 						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == storedOrderEntity.Item1.ClientId) ??
 								await _tradingDataRestConnector.GetOrderFromHistory(storedOrderEntity.Item1.ClientId, orderPair.OpenPositionOrder.CurrencyPair);
-						SyncOrderSettingsWithServer(orderPair.OpenPositionOrder, serverSideOpenPositionOrder);
+						orderPair.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 						cancellationInterrupted = true;
 					}
 					else
@@ -711,7 +712,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					{
 						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideClosePositionOrder))
 					};
-				SyncOrderSettingsWithServer(orderPair.ClosePositionOrder, serverSideClosePositionOrder);
+				orderPair.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
 
 				var serverSideStopLossOrder = await _tradingDataRestConnector.CancelOrder(orderPair.StopLossOrder);
 				if (serverSideStopLossOrder.OrderStateType != OrderStateType.Cancelled)
@@ -719,7 +720,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 					{
 						Details = String.Format("Order: {0}", JsonConvert.SerializeObject(serverSideStopLossOrder))
 					};
-				SyncOrderSettingsWithServer(orderPair.StopLossOrder, serverSideStopLossOrder);
+				orderPair.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
 			}
 
 			if (!cancellationInterrupted)
@@ -741,84 +742,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				_loggingService.LogAction(orderPair.ClosePositionOrder.ToLogAction(OrderActionType.History));
 				_loggingService.LogAction(orderPair.StopLossOrder.ToLogAction(OrderActionType.History));
 			}
-		}
-
-		private void SyncOrderSettingsWithServer(
-			Infrastructure.Common.Models.Trading.Order localOrder,
-			Infrastructure.Common.Models.Trading.Order serverOrder)
-		{
-			localOrder.ExtId = serverOrder.ExtId;
-
-			localOrder.OrderSide = serverOrder.OrderSide;
-			localOrder.OrderType = serverOrder.OrderType;
-			localOrder.OrderStateType = serverOrder.OrderStateType;
-			localOrder.TimeInForce = serverOrder.TimeInForce;
-		}
-
-		private IList<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>> GenerateOrderPairs(IList<Domain.Core.Entities.Trading.Order> orderEntities)
-		{
-			var result = new List<Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order>>();
-			foreach (var openPositionOrderEntity in orderEntities.Where(entity => entity.Role == OrderRoleType.OpenPosition)
-				.ToList())
-			{
-				result.Add(
-					new Tuple<Domain.Core.Entities.Trading.Order, Domain.Core.Entities.Trading.Order,
-						Domain.Core.Entities.Trading.Order>(
-						openPositionOrderEntity,
-						orderEntities.Single(entity =>
-							entity.ParentClientId == openPositionOrderEntity.ClientId && entity.Role == OrderRoleType.ClosePosition),
-						orderEntities.Single(entity =>
-							entity.ParentClientId == openPositionOrderEntity.ClientId && entity.Role == OrderRoleType.StopLoss)));
-			}
-			return result;
-		}
-
-		private async Task<decimal> GetNearestBidSupportPrice(CurrencyPair currencyPair)
-		{
-			var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
-				.Where(item => item.Type == OrderBookItemType.Bid)
-				.ToList();
-
-			if (!orderBookBidItems.Any())
-				throw new NoNullAllowedException("Couldn't load order book");
-
-			var avgBidSize = orderBookBidItems
-				.Average(item => item.Size);
-
-			var topBidPrice = orderBookBidItems
-				.OrderByDescending(item => item.Price)
-				.Select(item => item.Price)
-				.First();
-
-			return orderBookBidItems
-				.Where(item => item.Size > avgBidSize && item.Price < topBidPrice)
-				.OrderByDescending(item => item.Price)
-				.Select(item => item.Price)
-				.First();
-		}
-
-		private async Task<decimal> GetNearestAskSupportPrice(CurrencyPair currencyPair)
-		{
-			var orderBookAskItems = (await _marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
-				.Where(item => item.Type == OrderBookItemType.Ask)
-				.ToList();
-
-			if (!orderBookAskItems.Any())
-				throw new NoNullAllowedException("Couldn't load order book");
-
-			var avgAskSize = orderBookAskItems
-				.Average(item => item.Size);
-
-			var bottomAskPrice = orderBookAskItems
-				.OrderBy(item => item.Price)
-				.Select(item => item.Price)
-				.First();
-
-			return orderBookAskItems
-				.Where(item => item.Size > avgAskSize && item.Price > bottomAskPrice)
-				.OrderBy(item => item.Price)
-				.Select(item => item.Price)
-				.First();
 		}
 	}
 }

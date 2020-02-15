@@ -5,7 +5,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Common;
-using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Socket.Services.HitBtc;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Test
@@ -16,7 +15,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Test
 	[TestClass]
 	public class MarketTests
 	{
-		private readonly IMarketDataSocketConnector _marketDataSocketConnector = new MarketDataSocketConnector();
+		private readonly MarketDataSocketConnector _marketDataSocketConnector = new MarketDataSocketConnector();
 
 		[TestMethod]
 		public async Task GetCurrenciesReturnsNonEmpty()

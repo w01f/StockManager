@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Threading;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.EventArgs;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -51,7 +52,7 @@ namespace StockManager.TradingBot
 
 					configurationService.UpdateTradingSettings(tradingSettings);
 
-					await tradingController.StartTrading();
+					//await tradingController.StartTrading();
 
 					watch.Stop();
 					Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
@@ -78,7 +79,7 @@ namespace StockManager.TradingBot
 			return result;
 		}
 
-		private static void OnTradingEventsObserverPositionChanged(object sender, TradingEventsObserver.PositionChangedEventArgs e)
+		private static void OnTradingEventsObserverPositionChanged(object sender, PositionChangedEventArgs e)
 		{
 			switch (e.EventType)
 			{

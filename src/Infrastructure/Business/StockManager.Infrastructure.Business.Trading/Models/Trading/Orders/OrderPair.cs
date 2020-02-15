@@ -12,6 +12,8 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Orders
 		public Order ClosePositionOrder { get; set; }
 		public Order StopLossOrder { get; set; }
 
+		public string CurrencyPairId => OpenPositionOrder.CurrencyPair.Id;
+
 		public bool IsPendingPosition => OpenPositionOrder.OrderStateType == OrderStateType.New ||
 											OpenPositionOrder.OrderStateType == OrderStateType.Suspended;
 

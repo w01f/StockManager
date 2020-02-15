@@ -1,9 +1,10 @@
-﻿using System.Threading.Tasks;
+﻿using System.Threading;
+using System.Threading.Tasks;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
 	public interface ITradingController
 	{
-		Task StartTrading();
+		Task StartTrading(CancellationToken cancellationToken);
 	}
 }

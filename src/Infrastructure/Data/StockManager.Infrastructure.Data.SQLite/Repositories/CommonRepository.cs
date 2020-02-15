@@ -52,6 +52,13 @@ namespace StockManager.Infrastructure.Data.SQLite.Repositories
 			SaveChanges();
 		}
 
+		public virtual void Update(IEnumerable<TEntity> entities)
+		{
+			if (entities == null)
+				throw new ArgumentNullException(nameof(entities));
+			SaveChanges();
+		}
+
 		public virtual void Delete(TEntity entity)
 		{
 			if (entity == null)

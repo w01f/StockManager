@@ -9,6 +9,7 @@ using StockManager.Infrastructure.Connectors.Socket.Connection;
 using StockManager.Infrastructure.Connectors.Socket.Models.NotificationParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.RequestParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.Market;
+using Ticker = StockManager.Infrastructure.Common.Models.Market.Ticker;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 {
@@ -83,9 +84,25 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			});
 		}
 
-		public void SubscribeOnTickers(Action<IList<Infrastructure.Common.Models.Market.Ticker>> callback)
+		public async Task SubscribeOnTickers(string currencyPairId, Action<Ticker> callback)
 		{
-			throw new NotImplementedException();
+			var request = new SocketSubscriptionRequest<TickerRequestParameters>
+			{
+				RequestMethodName = "subscribeTicker",
+				NotificationMethodNames =
+				{
+					"ticker",
+				},
+				RequestParameters = new TickerRequestParameters()
+				{
+					CurrencyPairId = currencyPairId,
+				}
+			};
+
+			await _connection.Subscribe<Models.Market.Ticker>(request, ticker =>
+			{
+				callback(ticker.ToOuterModel());
+			});
 		}
 	}
 }
