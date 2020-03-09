@@ -2,9 +2,10 @@
 {
 	public enum TradingEventType
 	{
-        NewPosition,
-        PositionOpened,
-        PositionClosedSuccessfully,
+		NewPosition,
+		PositionOpened,
+		PositionCancelled,
+		PositionClosedSuccessfully,
 		PositionClosedDueStopLoss
 	}
 }

@@ -59,6 +59,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{773FD123-A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockManager.Infrastructure.Connectors.Socket.Test", "test\Infrastructure\Connectors\StockManager.Infrastructure.Connectors.Socket.Test\StockManager.Infrastructure.Connectors.Socket.Test.csproj", "{8BB615F6-1B14-43D7-8A56-D360DC02D9DC}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{2FBB3316-A67C-4B93-A3CC-57F214659333}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,7 @@ Global
 		{9392D9CA-5E8D-4F33-A69C-C74BB1F505C9} = {FB97555E-5B9F-49CB-A1FE-C4C00125E1AB}
 		{773FD123-A2FA-4406-BE06-83A57106EA86} = {FB97555E-5B9F-49CB-A1FE-C4C00125E1AB}
 		{8BB615F6-1B14-43D7-8A56-D360DC02D9DC} = {773FD123-A2FA-4406-BE06-83A57106EA86}
+		{2FBB3316-A67C-4B93-A3CC-57F214659333} = {A8128FAC-8072-4436-AE1B-F5DC578E3D1E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {28456BED-5AB3-40B9-9C8D-8460E157E7F6}

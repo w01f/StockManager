@@ -143,7 +143,7 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 					.ToList());
 		}
 
-		private IEnumerable<DateTime> GetMomentsByPeriod(CandlePeriod period, int limit, DateTime currentMoment)
+		private static IEnumerable<DateTime> GetMomentsByPeriod(CandlePeriod period, int limit, DateTime currentMoment)
 		{
 			var lastDate = currentMoment;
 			lastDate = new DateTime(lastDate.Year, lastDate.Month, lastDate.Day, lastDate.Hour, lastDate.Minute, 0);

@@ -11,7 +11,7 @@ namespace StockManager.SandBox
 	public partial class FormMain : Form
 	{
 		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataRestConnector _tradingDataRestConnector;
+		private readonly ITradingDataConnector _tradingDataConnector;
 
 		public FormMain()
 		{
@@ -21,10 +21,10 @@ namespace StockManager.SandBox
 		[Inject]
 		public FormMain(
 			IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataRestConnector tradingDataRestConnector) : this()
+			ITradingDataConnector tradingDataConnector) : this()
 		{
 			_marketDataRestConnector = marketDataRestConnector;
-			_tradingDataRestConnector = tradingDataRestConnector;
+			_tradingDataConnector = tradingDataConnector;
 		}
 
 		private async void OnRunTestClick(object sender, EventArgs e)
@@ -47,11 +47,11 @@ namespace StockManager.SandBox
 				StopPrice = 0
 			};
 
-			var newOrder = await _tradingDataRestConnector.CreateOrder(initialOrder, true);
+			var newOrder = await _tradingDataConnector.CreateOrder(initialOrder, true);
 
-			var cancelledOrder = await _tradingDataRestConnector.CancelOrder(newOrder);
+			var cancelledOrder = await _tradingDataConnector.CancelOrder(newOrder);
 
-			var testOrder = await _tradingDataRestConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
+			var testOrder = await _tradingDataConnector.GetOrderFromHistory(initialOrder.ClientId, currencyPair);
 
 			MessageBox.Show(@"Passed");
 		}

@@ -9,15 +9,15 @@ using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
+using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.AsyncWorker;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
-using StockManager.Infrastructure.Utilities.Logging.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
@@ -26,13 +26,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 		private readonly IRepository<Order> _orderRepository;
 		private readonly IMarketDataSocketConnector _marketDataSocketConnector;
 		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataRestConnector _tradingDataRestConnector;
+		private readonly ITradingDataConnector _tradingDataConnector;
 		private readonly CandleLoadingService _candleLoadingService;
+		private readonly OrderBookLoadingService _orderBookLoadingService;
+		private readonly TradingReportsService _tradingReportsService;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly ITradingPositionWorkerFactory _tradingPositionWorkerFactory;
+		private readonly ITradingPositionService _tradingPositionService;
 		private readonly ConfigurationService _configurationService;
 		private readonly TradingEventsObserver _tradingEventsObserver;
-		private readonly ILoggingService _loggingService;
 
 		private IList<TradingPositionWorker> _activePositionWorkers;
 
@@ -40,29 +42,35 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			IRepository<Order> orderRepository,
 			IMarketDataSocketConnector marketDataSocketConnector,
 			IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataRestConnector tradingDataRestConnector,
+			ITradingDataConnector tradingDataConnector,
 			CandleLoadingService candleLoadingService,
+			OrderBookLoadingService orderBookLoadingService,
+			TradingReportsService tradingReportsService,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			ITradingPositionWorkerFactory tradingPositionWorkerFactory,
+			ITradingPositionService tradingPositionService,
 			ConfigurationService configurationService,
-			TradingEventsObserver tradingEventsObserver,
-			ILoggingService loggingService)
+			TradingEventsObserver tradingEventsObserver)
 		{
 			_orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
 			_marketDataSocketConnector = marketDataSocketConnector ?? throw new ArgumentNullException(nameof(marketDataSocketConnector));
 			_marketDataRestConnector = marketDataRestConnector ?? throw new ArgumentNullException(nameof(marketDataRestConnector));
-			_tradingDataRestConnector = tradingDataRestConnector ?? throw new ArgumentNullException(nameof(tradingDataRestConnector));
+			_tradingDataConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
 			_candleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
+			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
+			_tradingReportsService = tradingReportsService ?? throw new ArgumentNullException(nameof(tradingReportsService));
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService ?? throw new ArgumentNullException(nameof(marketNewPositionAnalysisService));
 			_tradingPositionWorkerFactory = tradingPositionWorkerFactory ?? throw new ArgumentNullException(nameof(tradingPositionWorkerFactory));
+			_tradingPositionService = tradingPositionService ?? throw new ArgumentNullException(nameof(tradingPositionService));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
-			_tradingEventsObserver = tradingEventsObserver ?? throw new ArgumentNullException(nameof(loggingService));
-			_loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+			_tradingEventsObserver = tradingEventsObserver ?? throw new ArgumentNullException(nameof(tradingEventsObserver));
 		}
 
 		public async Task StartTrading(CancellationToken cancellationToken)
 		{
 			await SubscribeOnTradingEvents();
+
+			await _tradingPositionService.SyncExistingPositionsWithStock(positionChangedEventArgs => _tradingEventsObserver.RaisePositionChanged(positionChangedEventArgs));
 			await LoadExistingPositions();
 
 			while (!cancellationToken.CanBeCanceled)
@@ -98,7 +106,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 					await CheckOutForNewPosition(ticker);
 				});
+
+				_orderBookLoadingService.InitSubscription(currencyPair.Id);
 			}
+
+			await _tradingReportsService.InitSubscription(tradingCurrencyPairs);
 		}
 
 		private async Task CheckOutForNewPosition(Ticker ticker)
@@ -141,7 +153,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 			if (volumeToCompare > tradingSettings.MinCurrencyPairTradingVolumeInBTC)
 			{
-				var tradingBalance = await _tradingDataRestConnector.GetTradingBallnce(tickerCurrencyPair.QuoteCurrencyId);
+				var tradingBalance = await _tradingDataConnector.GetTradingBalance(tickerCurrencyPair.QuoteCurrencyId);
 				if (tradingBalance?.Available > 0)
 				{
 					var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tickerCurrencyPair);
@@ -161,7 +173,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 			_activePositionWorkers = new List<TradingPositionWorker>();
 
-			var storedOrderPairs = _orderRepository.GetAll().ToList().GenerateOrderPairs();
+			var storedOrderPairs = _orderRepository.GetAll().ToList().GroupOrders();
 			foreach (var storedOrderTuple in storedOrderPairs)
 			{
 				var currencyPair = await _marketDataRestConnector.GetCurrensyPair(storedOrderTuple.Item1.CurrencyPair);
@@ -172,7 +184,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						Details = $"Currency pair id: {storedOrderTuple.Item1.CurrencyPair}"
 					};
 
-				var worker = _tradingPositionWorkerFactory.CreateWorkerWithExistingPosition(storedOrderTuple.ToModel(currencyPair), OnPositionChanged);
+				var worker = _tradingPositionWorkerFactory.CreateWorkerWithExistingPosition(storedOrderTuple.ToTradingPosition(currencyPair), OnPositionChanged);
 				_activePositionWorkers.Add(worker);
 			}
 		}

@@ -4,13 +4,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Infrastructure.Business.Trading.Enums;
+using StockManager.Infrastructure.Business.Trading.EventArgs;
+using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
-using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
@@ -20,33 +23,36 @@ using StockManager.Infrastructure.Utilities.Logging.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
-	public class WebAPITradingController: ITradingController
+	public class WebAPITradingController : ITradingController
 	{
 		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataRestConnector _tradingDataRestConnector;
+		private readonly ITradingDataConnector _tradingDataConnector;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly IMarketPendingPositionAnalysisService _marketPendingPositionAnalysisService;
 		private readonly IMarketOpenPositionAnalysisService _marketOpenPositionAnalysisService;
-		private readonly IOrdersService _orderService;
+		private readonly ITradingPositionService _tradingPositionService;
 		private readonly ConfigurationService _configurationService;
+		private readonly TradingEventsObserver _tradingEventsObserver;
 		private readonly ILoggingService _loggingService;
 
 		public WebAPITradingController(IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataRestConnector tradingDataRestConnector,
+			ITradingDataConnector tradingDataConnector,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			IMarketPendingPositionAnalysisService marketPendingPositionAnalysisService,
 			IMarketOpenPositionAnalysisService marketOpenPositionAnalysisService,
-			IOrdersService orderService,
+			ITradingPositionService tradingPositionService,
 			ConfigurationService configurationService,
+			TradingEventsObserver tradingEventsObserver,
 			ILoggingService loggingService)
 		{
 			_marketDataRestConnector = marketDataRestConnector;
-			_tradingDataRestConnector = tradingDataRestConnector;
+			_tradingDataConnector = tradingDataConnector;
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 			_marketPendingPositionAnalysisService = marketPendingPositionAnalysisService;
 			_marketOpenPositionAnalysisService = marketOpenPositionAnalysisService;
-			_orderService = orderService;
+			_tradingPositionService = tradingPositionService;
 			_configurationService = configurationService;
+			_tradingEventsObserver = tradingEventsObserver;
 			_loggingService = loggingService;
 		}
 
@@ -54,47 +60,44 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 		{
 			try
 			{
-				await _orderService.SyncOrders();
+				var onPositionChangedCallback = new Action<PositionChangedEventArgs>(positionChangedEventArgs => _tradingEventsObserver.RaisePositionChanged(positionChangedEventArgs));
 
-				var activeOrderPairs = await _orderService.GetActiveOrders();
+				await _tradingPositionService.SyncExistingPositionsWithStock(onPositionChangedCallback);
 
-				if (activeOrderPairs.Any())
+				var tradingPositions = await _tradingPositionService.GetOpenPositions();
+
+				if (tradingPositions.Any())
 				{
-					foreach (var activeOrderPair in activeOrderPairs)
+					foreach (var tradingPosition in tradingPositions)
 					{
-						if (activeOrderPair.IsOpenPosition)
+						if (tradingPosition.IsOpenPosition)
 						{
-							var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(activeOrderPair);
+							var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
-							{
-								activeOrderPair.ApplyOrderChanges((UpdateClosePositionInfo)marketInfo);
-								await _orderService.UpdatePosition(activeOrderPair);
-							}
+								tradingPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
 							else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
-							{
-								activeOrderPair.ApplyOrderChanges((FixStopLossInfo)marketInfo);
-								await _orderService.UpdatePosition(activeOrderPair);
-							}
+								tradingPosition.ChangePosition((FixStopLossInfo)marketInfo);
 							else if (marketInfo.PositionType == OpenMarketPositionType.Suspend)
-							{
-								await _orderService.SuspendPosition(activeOrderPair);
-							}
+								tradingPosition.ChangePosition((SuspendPositionInfo)marketInfo);
+
+							if (marketInfo.PositionType != OpenMarketPositionType.Hold)
+								await _tradingPositionService.UpdatePosition(tradingPosition, onPositionChangedCallback);
 						}
-						else if (activeOrderPair.IsPendingPosition)
+						else if (tradingPosition.IsPendingPosition)
 						{
-							var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(activeOrderPair);
+							var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
-							{
-								activeOrderPair.ApplyOrderChanges((UpdateOrderInfo)marketInfo);
-								await _orderService.UpdatePosition(activeOrderPair);
-							}
+								tradingPosition.ChangePosition((UpdateOrderInfo)marketInfo);
 							else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
-								await _orderService.CancelPosition(activeOrderPair);
+								tradingPosition.ChangePosition((CancelOrderInfo)marketInfo);
+
+							if (marketInfo.PositionType != PendingMarketPositionType.Hold)
+								await _tradingPositionService.UpdatePosition(tradingPosition, onPositionChangedCallback);
 						}
 						else
-							throw new BusinessException("Unexpected order pair state")
+							throw new BusinessException("Unexpected position state")
 							{
-								Details = String.Format("Order pair: {0}", JsonConvert.SerializeObject(activeOrderPair))
+								Details = $"Order pair: {JsonConvert.SerializeObject(tradingPosition)}"
 							};
 					}
 				}
@@ -107,7 +110,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					var baseCurrencyPairs = allCurrencyPairs
 						.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId =>
 										String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)) &&
-										!activeOrderPairs.Any(orderPair => String.Equals(orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId, item.BaseCurrencyId))
+										!tradingPositions.Any(orderPair => String.Equals(orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId, item.BaseCurrencyId))
 						);
 
 					var allTickers = await _marketDataRestConnector.GetTickers();
@@ -150,18 +153,29 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					foreach (var currencyPair in baseCurrencyPairs.Where(currencyPairItem => tradingTickers.Any(tickerItem =>
 						String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id, StringComparison.OrdinalIgnoreCase))).ToList())
 					{
-						var tradingBalance = await _tradingDataRestConnector.GetTradingBallnce(currencyPair.QuoteCurrencyId);
+						var tradingBalance = await _tradingDataConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
 						if (tradingBalance?.Available <= 0)
 							continue;
 
 						var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
 						if (marketInfo.PositionType != NewMarketPositionType.Wait)
 						{
-							await _orderService.OpenPosition((NewOrderPositionInfo)marketInfo);
+							var newPosition = await _tradingPositionService.OpenPosition((NewOrderPositionInfo)marketInfo, onPositionChangedCallback);
+							_tradingEventsObserver.RaisePositionChanged(TradingEventType.NewPosition, newPosition.CurrencyPairId);
 							break;
 						}
 					}
 				}
+			}
+			catch (BusinessWarning e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					Details = e.Details,
+					StackTrace = e.StackTrace
+				});
 			}
 			catch (BusinessException e)
 			{

@@ -16,8 +16,8 @@ namespace StockManager.SandBox
 			Bind<IMarketDataRestConnector>()
 				.To<MarketDataRestConnector>();
 
-			Bind<ITradingDataRestConnector>()
-				.To<TradingDataRestConnector>();
+			Bind<ITradingDataConnector>()
+				.To<TradingDataConnector>();
 
 			Bind<CandleLoadingService>()
 				.ToSelf();

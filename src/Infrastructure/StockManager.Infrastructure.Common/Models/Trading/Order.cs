@@ -6,6 +6,7 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 {
 	public class Order
 	{
+		public Int64 Id { get; set; }
 		public Int64 ExtId { get; set; }
 		public Guid ClientId { get; set; }
 		public Guid ParentClientId { get; set; }
@@ -21,26 +22,5 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 		public OrderAnalysisInfo AnalysisInfo { get; set; }
 		public DateTime Created { get; set; }
 		public DateTime Updated { get; set; }
-
-		public Order Clone()
-		{
-			var newOrder = new Order();
-			newOrder.ExtId = ExtId;
-			newOrder.ClientId = ClientId;
-			newOrder.ParentClientId = ParentClientId;
-			newOrder.CurrencyPair = CurrencyPair;
-			newOrder.Role = Role;
-			newOrder.OrderSide = OrderSide;
-			newOrder.OrderType = OrderType;
-			newOrder.OrderStateType = OrderStateType;
-			newOrder.TimeInForce = TimeInForce;
-			newOrder.Quantity = Quantity;
-			newOrder.Price = Price;
-			newOrder.StopPrice = StopPrice;
-			newOrder.AnalysisInfo = AnalysisInfo;
-			newOrder.Created = Created;
-			newOrder.Updated = Updated;
-			return newOrder;
-		}
 	}
 }

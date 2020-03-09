@@ -91,6 +91,10 @@ namespace StockManager.TradingBot
 					Console.ForegroundColor = ConsoleColor.Yellow;
 					Console.WriteLine($"Position Opened {e.Details}");
 					break;
+				case TradingEventType.PositionCancelled:
+					Console.ForegroundColor = ConsoleColor.Magenta;
+					Console.WriteLine($"Position Cancelled {e.Details}");
+					break;
 				case TradingEventType.PositionClosedSuccessfully:
 					Console.ForegroundColor = ConsoleColor.Green;
 					Console.WriteLine($"Position Closed Successfully {e.Details}");

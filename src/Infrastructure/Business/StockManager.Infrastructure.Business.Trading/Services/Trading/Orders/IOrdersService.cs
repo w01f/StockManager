@@ -1,17 +1,13 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
+﻿using System.Threading.Tasks;
+using StockManager.Infrastructure.Common.Models.Trading;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 {
 	public interface IOrdersService
 	{
-		Task SyncOrders();
-		Task<IList<OrderPair>> GetActiveOrders();
-		Task OpenPosition(NewOrderPositionInfo positionInfo);
-		Task UpdatePosition(OrderPair orderPair);
-		Task SuspendPosition(OrderPair orderPair);
-		Task CancelPosition(OrderPair orderPair);
+		Task<Order> CreateBuyLimitOrder(Order order);
+		Task<Order> CreateSellLimitOrder(Order order);
+		Task<Order> CreateSellMarketOrder(Order order);
+		Task<Order> CancelOrder(Order order);
 	}
 }

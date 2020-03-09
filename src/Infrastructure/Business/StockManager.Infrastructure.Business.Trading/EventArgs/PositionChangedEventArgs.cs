@@ -1,4 +1,5 @@
-﻿using StockManager.Infrastructure.Business.Trading.Enums;
+﻿using System;
+using StockManager.Infrastructure.Business.Trading.Enums;
 
 namespace StockManager.Infrastructure.Business.Trading.EventArgs
 {
@@ -7,9 +8,10 @@ namespace StockManager.Infrastructure.Business.Trading.EventArgs
 		public TradingEventType EventType { get; }
 		public string Details { get; }
 
-		public PositionChangedEventArgs(TradingEventType eventType, string details = null)
+		public PositionChangedEventArgs(TradingEventType eventType, string currencyPairId = null)
 		{
-			Details = details;
+			if (!String.IsNullOrWhiteSpace(currencyPairId))
+				Details = $"(Ticker: {currencyPairId})";
 			EventType = eventType;
 		}
 	}

@@ -11,16 +11,16 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Rest.Services.HitBtc
 {
-	public class TradingDataRestConnector : ITradingDataRestConnector
+	public class TradingDataConnector : ITradingDataConnector
 	{
 		private readonly ConfigurationService _configurationService;
 
-		public TradingDataRestConnector(ConfigurationService configurationService)
+		public TradingDataConnector(ConfigurationService configurationService)
 		{
 			_configurationService = configurationService;
 		}
 
-		public async Task<Infrastructure.Common.Models.Trading.TradingBallance> GetTradingBallnce(string currencyId)
+		public async Task<Infrastructure.Common.Models.Trading.TradingBallance> GetTradingBalance(string currencyId)
 		{
 			var connection = new HitBtcConnection();
 			var request = new RestRequest("trading/balance", Method.GET);
@@ -138,6 +138,11 @@ namespace StockManager.Infrastructure.Connectors.Rest.Services.HitBtc
 				.ExtractResponseData<Order>()
 				?.ToOuterModel(initialOrder.CurrencyPair);
 			return responseOrder;
+		}
+
+		public Task SubscribeOrders(IList<CurrencyPair> targetCurrencyPairs, Action<Infrastructure.Common.Models.Trading.Order> callback)
+		{
+			throw new NotImplementedException();
 		}
 	}
 }

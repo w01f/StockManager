@@ -9,9 +9,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 {
 	static class MarketDataConnectorExtensions
 	{
-		public static async Task<decimal> GetNearestBidSupportPrice(this IMarketDataRestConnector marketDataRestConnector, CurrencyPair currencyPair)
+		public static async Task<decimal> GetNearestBidSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 20))
 				.Where(item => item.Type == OrderBookItemType.Bid)
 				.ToList();
 
@@ -33,9 +33,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 		}
 
-		public static async Task<decimal> GetNearestAskSupportPrice(this IMarketDataRestConnector marketDataRestConnector, CurrencyPair currencyPair)
+		public static async Task<decimal> GetNearestAskSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await marketDataRestConnector.GetOrderBook(currencyPair.Id, 20))
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 20))
 				.Where(item => item.Type == OrderBookItemType.Ask)
 				.ToList();
 
@@ -55,6 +55,82 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.OrderBy(item => item.Price)
 				.Select(item => item.Price)
 				.First();
+		}
+
+		public static async Task<decimal> GetTopMeaningfulBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		{
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
+				.Where(item => item.Type == OrderBookItemType.Bid)
+				.ToList();
+
+			if (!orderBookBidItems.Any())
+				throw new NoNullAllowedException("Couldn't load order book");
+
+			var maxBidSize = orderBookBidItems
+				.Max(item => item.Size);
+
+			var topMeaningfulBidPrice = orderBookBidItems
+				.Where(item => item.Size == maxBidSize)
+				.OrderByDescending(item => item.Price)
+				.Select(item => item.Price)
+				.First();
+
+			return topMeaningfulBidPrice;
+		}
+
+		public static async Task<decimal> GetTopBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
+		{
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
+				.Where(item => item.Type == OrderBookItemType.Bid)
+				.ToList();
+
+			if (!orderBookBidItems.Any())
+				throw new NoNullAllowedException("Couldn't load order book");
+
+			return orderBookBidItems
+				.OrderByDescending(item => item.Price)
+				.Skip(skip)
+				.Select(item => item.Price)
+				.First();
+		}
+
+		public static async Task<decimal> GetBottomMeaningfulAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		{
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
+				.Where(item => item.Type == OrderBookItemType.Ask)
+				.ToList();
+
+			if (!orderBookAskItems.Any())
+				throw new NoNullAllowedException("Couldn't load order book");
+
+			var maxAskSize = orderBookAskItems
+				.Max(item => item.Size);
+
+			var bottomMeaningfulAskPrice = orderBookAskItems
+				.Where(item => item.Size == maxAskSize)
+				.OrderBy(item => item.Price)
+				.Select(item => item.Price)
+				.First();
+
+			return bottomMeaningfulAskPrice;
+		}
+
+		public static async Task<decimal> GetBottomAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
+		{
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
+				.Where(item => item.Type == OrderBookItemType.Ask)
+				.ToList();
+
+			if (!orderBookAskItems.Any())
+				throw new NoNullAllowedException("Couldn't load order book");
+
+			var bottomMeaningfulAskPrice = orderBookAskItems
+				.OrderBy(item => item.Price)
+				.Skip(skip)
+				.Select(item => item.Price)
+				.First();
+
+			return bottomMeaningfulAskPrice;
 		}
 	}
 }

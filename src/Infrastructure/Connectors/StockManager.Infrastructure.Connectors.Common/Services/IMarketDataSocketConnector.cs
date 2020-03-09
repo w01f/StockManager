@@ -17,5 +17,6 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 
 		Task SubscribeOnCandles(string currencyPairId, CandlePeriod period, Action<IList<Candle>> callback, int limit = 30);
 		Task SubscribeOnTickers(string currencyPairId, Action<Ticker> callback);
+		Task SubscribeOnOrderBook(string currencyPairId, Action<IList<OrderBookItem>> callback);
 	}
 }

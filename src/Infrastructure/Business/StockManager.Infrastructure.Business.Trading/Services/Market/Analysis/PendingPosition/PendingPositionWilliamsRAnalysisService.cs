@@ -7,9 +7,9 @@ using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.PendingPosition;
-using StockManager.Infrastructure.Business.Trading.Models.Trading.Orders;
+using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
-using StockManager.Infrastructure.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Services.Extensions.Connectors;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -19,22 +19,22 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class PendingPositionWilliamsRAnalysisService : IMarketPendingPositionAnalysisService
 	{
 		private readonly CandleLoadingService _candleLoadingService;
-		private readonly IMarketDataRestConnector _marketDataRestConnector;
+		private readonly OrderBookLoadingService _orderBookLoadingService;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly ConfigurationService _configurationService;
 
 		public PendingPositionWilliamsRAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataRestConnector marketDataRestConnector,
+			OrderBookLoadingService orderBookLoadingService,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			_candleLoadingService = candleLoadingService;
-			_marketDataRestConnector = marketDataRestConnector;
-			_indicatorComputingService = indicatorComputingService;
-			_configurationService = configurationService;
+			_candleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
+			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
+			_indicatorComputingService = indicatorComputingService ?? throw new ArgumentNullException(nameof(indicatorComputingService));
+			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
-		public async Task<PendingPositionInfo> ProcessMarketPosition(OrderPair activeOrderPair)
+		public async Task<PendingPositionInfo> ProcessMarketPosition(TradingPosition activeTradingPosition)
 		{
 			var settings = _configurationService.GetTradingSettings();
 
@@ -51,7 +51,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			};
 
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
-				activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+				activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 				settings.Period,
 				williamsRSettings.Period * 2,
 				settings.Moment))
@@ -62,7 +62,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var currentTargetPeriodCandle = targetPeriodLastCandles.Last();
 
 			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
-					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetHigherFramePeriod(),
 					williamsRSettings.Period,
 					settings.Moment))
@@ -71,7 +71,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				throw new NoNullAllowedException("No candles loaded");
 
 			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
-					activeOrderPair.OpenPositionOrder.CurrencyPair.Id,
+					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
 					williamsRSettings.Period,
 					settings.Moment))
@@ -130,84 +130,51 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			if (currentWilliamsRValue.Value >= (useExtendedBorders ? 50 : 80) &&
 				currentWilliamsRValue.Value < 95 &&
-				((activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue.Value < previousWilliamsRValue?.Value) ||
-				(activeOrderPair.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
+				((activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue.Value < previousWilliamsRValue?.Value) ||
+				(activeTradingPosition.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
 				Math.Abs(maxWilliamsRValue - currentWilliamsRValue.Value ?? 0) < 20)
 			{
 				decimal stopOpenPrice;
 				decimal openPrice;
-				if (activeOrderPair.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
+				if (activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
 				{
-					var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
-						.Where(item => item.Type == OrderBookItemType.Bid)
-						.ToList();
+					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair);
 
-					if (!orderBookBidItems.Any())
-						throw new NoNullAllowedException("Couldn't load order book");
-
-					var topBidPrice = orderBookBidItems
-						.OrderByDescending(item => item.Price)
-						.Select(item => item.Price)
-						.First();
-
-					openPrice = activeOrderPair.OpenPositionOrder.Price == topBidPrice ?
+					openPrice = activeTradingPosition.OpenPositionOrder.Price == topBidPrice ?
 						topBidPrice :
-						(topBidPrice + activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize);
+						(topBidPrice + activeTradingPosition.OpenPositionOrder.CurrencyPair.TickSize);
 
-					var orderBookAskItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 5))
-						.Where(item => item.Type == OrderBookItemType.Ask)
-						.ToList();
+					var bottomMeaningfulAskPrice = await _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair, 1);
 
-					if (!orderBookAskItems.Any())
-						throw new NoNullAllowedException("Couldn't load order book");
-
-					var bottomMeaningfulAskPrice = orderBookAskItems
-						.OrderBy(item => item.Price)
-						.Skip(1)
-						.Select(item => item.Price)
-						.First();
-
-					stopOpenPrice = new[] { activeOrderPair.OpenPositionOrder.StopPrice ?? 0, bottomMeaningfulAskPrice }.Min();
+					stopOpenPrice = new[] { activeTradingPosition.OpenPositionOrder.StopPrice ?? 0, bottomMeaningfulAskPrice }.Min();
 				}
 				else
 				{
 					stopOpenPrice = 0;
 
-					var orderBookBidItems = (await _marketDataRestConnector.GetOrderBook(activeOrderPair.OpenPositionOrder.CurrencyPair.Id, 20))
-						.Where(item => item.Type == OrderBookItemType.Bid)
-						.ToList();
-
-					if (!orderBookBidItems.Any())
-						throw new NoNullAllowedException("Couldn't load order book");
-
-					var topBidPrice = orderBookBidItems
-						.OrderByDescending(item => item.Price)
-						.Select(item => item.Price)
-						.First();
+					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair);
 
 					openPrice = new[]
 						{
-							activeOrderPair.OpenPositionOrder.Price==topBidPrice?
-								topBidPrice:
-								(topBidPrice+activeOrderPair.OpenPositionOrder.CurrencyPair.TickSize),
-							activeOrderPair.OpenPositionOrder.Price
+							activeTradingPosition.OpenPositionOrder.Price == topBidPrice ? topBidPrice : (topBidPrice + activeTradingPosition.OpenPositionOrder.CurrencyPair.TickSize),
+							activeTradingPosition.OpenPositionOrder.Price
 						}.Max();
 				}
 
-				if (activeOrderPair.OpenPositionOrder.Price != openPrice ||
-					activeOrderPair.OpenPositionOrder.StopPrice != stopOpenPrice)
+				if (activeTradingPosition.OpenPositionOrder.Price != openPrice ||
+					activeTradingPosition.OpenPositionOrder.StopPrice != stopOpenPrice)
 					return new UpdateOrderInfo
 					{
 						OpenPrice = openPrice,
 						OpenStopPrice = stopOpenPrice,
 
-						ClosePrice = new[] { currentTargetPeriodCandle.MaxPrice, activeOrderPair.ClosePositionOrder.Price }.Max(),
-						CloseStopPrice = new[] { currentTargetPeriodCandle.MinPrice, activeOrderPair.ClosePositionOrder.StopPrice ?? 0 }.Min(),
+						ClosePrice = new[] { currentTargetPeriodCandle.MaxPrice, activeTradingPosition.ClosePositionOrder.Price }.Max(),
+						CloseStopPrice = new[] { currentTargetPeriodCandle.MinPrice, activeTradingPosition.ClosePositionOrder.StopPrice ?? 0 }.Min(),
 
 						StopLossPrice = new[]
 						{
 							currentTargetPeriodCandle.MinPrice - targetPeriodLastCandles.Select(candle=>(candle.MaxPrice-candle.MinPrice)*5).Average(),
-							activeOrderPair.StopLossOrder.StopPrice ?? 0
+							activeTradingPosition.StopLossOrder.StopPrice ?? 0
 						}.Min()
 					};
 

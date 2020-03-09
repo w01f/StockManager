@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
+using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Connectors.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Socket.Connection;
 using StockManager.Infrastructure.Connectors.Socket.Models.NotificationParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.RequestParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.Market;
-using Ticker = StockManager.Infrastructure.Common.Models.Market.Ticker;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 {
@@ -84,7 +84,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			});
 		}
 
-		public async Task SubscribeOnTickers(string currencyPairId, Action<Ticker> callback)
+		public async Task SubscribeOnTickers(string currencyPairId, Action<Infrastructure.Common.Models.Market.Ticker> callback)
 		{
 			var request = new SocketSubscriptionRequest<TickerRequestParameters>
 			{
@@ -99,9 +99,41 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 				}
 			};
 
-			await _connection.Subscribe<Models.Market.Ticker>(request, ticker =>
+			await _connection.Subscribe<Ticker>(request, ticker =>
 			{
 				callback(ticker.ToOuterModel());
+			});
+		}
+
+		public async Task SubscribeOnOrderBook(string currencyPairId, Action<IList<Infrastructure.Common.Models.Market.OrderBookItem>> callback)
+		{
+			var request = new SocketSubscriptionRequest<OrderBookRequestParameters>
+			{
+				RequestMethodName = "subscribeOrderbook",
+				NotificationMethodNames =
+				{
+					"snapshotOrderbook",
+					"updateOrderbook"
+				},
+				RequestParameters = new OrderBookRequestParameters()
+				{
+					CurrencyPairId = currencyPairId,
+				}
+			};
+
+			await _connection.Subscribe<OrderBookNotificationParameters>(request, notificationParameters =>
+			{
+				var notificationCurrencyPairId = notificationParameters.CurrencyPairId;
+
+				if (currencyPairId != notificationCurrencyPairId)
+					return;
+
+				var mergedItems = new List<Infrastructure.Common.Models.Market.OrderBookItem>();
+
+				mergedItems.AddRange(notificationParameters.AskItems.Select(item => item.ToOuterModel(OrderBookItemType.Ask)));
+				mergedItems.AddRange(notificationParameters.BidItems.Select(item => item.ToOuterModel(OrderBookItemType.Bid)));
+
+				callback(mergedItems);
 			});
 		}
 	}

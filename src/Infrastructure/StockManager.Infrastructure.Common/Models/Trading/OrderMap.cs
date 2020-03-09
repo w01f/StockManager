@@ -12,6 +12,7 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 		{
 			var target = new Order();
 
+			target.Id = source.Id;
 			target.ExtId = source.ExtId;
 			target.ClientId = source.ClientId;
 			target.ParentClientId = source.ParentClientId;
@@ -51,6 +52,7 @@ namespace StockManager.Infrastructure.Common.Models.Trading
 			if (target == null)
 				target = new Domain.Core.Entities.Trading.Order();
 
+			target.Id = source.Id;
 			target.ExtId = source.ExtId;
 			target.ClientId = source.ClientId;
 			target.ParentClientId = source.ParentClientId;

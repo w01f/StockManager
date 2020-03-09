@@ -7,7 +7,7 @@ using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.Open
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers;
-using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Rest.Services.HitBtc;
 using StockManager.Infrastructure.Data.SQLite;
@@ -39,8 +39,8 @@ namespace StockManager.TradingBot
 
 			Bind<IMarketDataRestConnector>()
 				.To<MarketDataRestConnector>();
-			Bind<ITradingDataRestConnector>()
-				.To<TradingDataRestConnector>();
+			Bind<ITradingDataConnector>()
+				.To<TradingDataConnector>();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();
@@ -56,8 +56,8 @@ namespace StockManager.TradingBot
 			Bind<IMarketOpenPositionAnalysisService>()
 				.To<OpenPositionAnalysisService>();
 
-			Bind<IOrdersService>()
-				.To<OrdersService>();
+			Bind<ITradingPositionService>()
+				.To<TradingPositionService>();
 
 			Bind<ITradingController>()
 				.To<WebAPITradingController>();

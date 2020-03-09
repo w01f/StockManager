@@ -1,4 +1,5 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
@@ -8,7 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
-using StockManager.Infrastructure.Common.Enums;
+using StockManager.Infrastructure.Business.Trading.Services.Extensions.Connectors;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -18,14 +19,14 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class TripleFrameWilliamRStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
 		public TripleFrameWilliamRStrategyAnalysisService(CandleLoadingService candleLoadingService,
-			IMarketDataRestConnector marketDataRestConnector,
+			OrderBookLoadingService orderBookLoadingService,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			CandleLoadingService = candleLoadingService;
-			MarketDataRestConnector = marketDataRestConnector;
-			IndicatorComputingService = indicatorComputingService;
-			ConfigurationService = configurationService;
+			CandleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
+			OrderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
+			IndicatorComputingService = indicatorComputingService ?? throw new ArgumentNullException(nameof(indicatorComputingService));
+			ConfigurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
 		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
@@ -39,38 +40,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
 					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var orderBookBidItems = (await MarketDataRestConnector.GetOrderBook(currencyPair.Id, 5))
-						.Where(item => item.Type == OrderBookItemType.Bid)
-						.ToList();
+					buyPositionInfo.OpenPrice = await OrderBookLoadingService.GetTopMeaningfulBidPrice(currencyPair);
 
-					if (!orderBookBidItems.Any())
-						throw new NoNullAllowedException("Couldn't load order book");
-
-					var maxBidSize = orderBookBidItems
-						.Max(item => item.Size);
-
-					var topMeaningfulBidPrice = orderBookBidItems
-						.Where(item => item.Size == maxBidSize)
-						.OrderByDescending(item => item.Price)
-						.Select(item => item.Price)
-						.First();
-
-					buyPositionInfo.OpenPrice = topMeaningfulBidPrice;
-
-					var orderBookAskItems = (await MarketDataRestConnector.GetOrderBook(currencyPair.Id, 5))
-						.Where(item => item.Type == OrderBookItemType.Ask)
-						.ToList();
-
-					if (!orderBookAskItems.Any())
-						throw new NoNullAllowedException("Couldn't load order book");
-
-					var bottomMeaningfulAskPrice = orderBookAskItems
-						.OrderBy(item => item.Price)
-						.Skip(1)
-						.Select(item => item.Price)
-						.First();
-
-					buyPositionInfo.OpenStopPrice = bottomMeaningfulAskPrice;
+					buyPositionInfo.OpenStopPrice = await OrderBookLoadingService.GetBottomAskPrice(currencyPair, 1);
 
 					buyPositionInfo.ClosePrice =
 					buyPositionInfo.CloseStopPrice =

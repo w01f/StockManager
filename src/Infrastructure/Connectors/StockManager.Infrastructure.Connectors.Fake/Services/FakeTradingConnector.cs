@@ -13,14 +13,14 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Fake.Services
 {
-	public class FakeTradingRestConnector : ITradingDataRestConnector
+	public class FakeTradingConnector : ITradingDataConnector
 	{
 		private readonly IRepository<Domain.Core.Entities.Trading.Order> _orderRepository;
 		private readonly IRepository<Domain.Core.Entities.Trading.TradingBallance> _tradingBallanceRepository;
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly ConfigurationService _configurationService;
 
-		public FakeTradingRestConnector(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
+		public FakeTradingConnector(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
 			IRepository<Domain.Core.Entities.Trading.TradingBallance> tradingBallanceRepository,
 			CandleLoadingService candleLoadingService,
 			ConfigurationService configurationService)
@@ -31,7 +31,7 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 			_configurationService = configurationService;
 		}
 
-		public async Task<TradingBallance> GetTradingBallnce(string currencyId)
+		public async Task<TradingBallance> GetTradingBalance(string currencyId)
 		{
 			return await Task.Run(() => GetTradingBallnceInner(currencyId).ToModel());
 		}
@@ -243,7 +243,7 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 
 		public async Task<Order> CancelOrder(Order initialOrder)
 		{
-			var targetOrder = initialOrder.Clone();
+			var targetOrder = initialOrder;//.Clone();
 
 			var currencyId = targetOrder.Role == OrderRoleType.OpenPosition
 				? targetOrder.CurrencyPair.QuoteCurrencyId
@@ -266,6 +266,11 @@ namespace StockManager.Infrastructure.Connectors.Fake.Services
 			targetOrder.OrderStateType = OrderStateType.Cancelled;
 
 			return await Task.Run(() => targetOrder);
+		}
+
+		public Task SubscribeOrders(IList<CurrencyPair> targetCurrencyPairs, Action<Order> callback)
+		{
+			throw new NotImplementedException();
 		}
 	}
 }

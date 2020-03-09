@@ -10,7 +10,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public abstract class BaseNewPositionAnalysisService
 	{
 		protected CandleLoadingService CandleLoadingService { get; set; }
-		protected IMarketDataRestConnector MarketDataRestConnector { get; set; }
+		protected OrderBookLoadingService OrderBookLoadingService { get; set; }
 		protected IIndicatorComputingService IndicatorComputingService { get; set; }
 		protected ConfigurationService ConfigurationService { get; set; }
 
