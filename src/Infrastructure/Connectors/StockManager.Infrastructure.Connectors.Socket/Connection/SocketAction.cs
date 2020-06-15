@@ -1,5 +1,4 @@
 ﻿using System;
-using WebSocket4Net;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Connection
 {

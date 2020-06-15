@@ -46,5 +46,5 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Settings
 		}
 	}
 
-	public class WilliamsRSettings : CommonIndicatorSettings { }
+	public class RSISettings : CommonIndicatorSettings { }
 }

@@ -12,7 +12,6 @@ using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Common;
-using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -22,24 +21,21 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 	class BuyOrderCancellingProcessor : ITradingPositionStateProcessor
 	{
 		private readonly IRepository<Domain.Core.Entities.Trading.Order> _orderRepository;
-		private readonly ITradingDataConnector _tradingDataConnector;
 		private readonly IOrdersService _ordersService;
 		private readonly ILoggingService _loggingService;
 
 		public BuyOrderCancellingProcessor(IRepository<Domain.Core.Entities.Trading.Order> orderRepository,
-			ITradingDataConnector tradingDataConnector,
 			IOrdersService ordersService,
 			ILoggingService loggingService)
 		{
 			_orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
-			_tradingDataConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
 			_ordersService = ordersService ?? throw new ArgumentNullException(nameof(ordersService));
 			_loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
 		}
 
 		public bool IsAllowToProcess(TradingPosition currentState, TradingPosition nextState)
 		{
-			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
+			return ((currentState.OpenPositionOrder.OrderStateType == OrderStateType.New || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Suspended) &&
 					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending &&
 					currentState.StopLossOrder.OrderStateType == OrderStateType.Pending)
 					&&
@@ -63,10 +59,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				{
 					if (e.Message?.Contains("Order not found") ?? false)
 					{
-						var activeOrders = await _tradingDataConnector.GetActiveOrders(currentState.OpenPositionOrder.CurrencyPair);
+						var activeOrders = await _ordersService.GetActiveOrders(currentState.OpenPositionOrder.CurrencyPair);
 						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.OpenPositionOrder.ClientId) ??
-														await _tradingDataConnector.GetOrderFromHistory(currentState.OpenPositionOrder.ClientId, currentState.OpenPositionOrder.CurrencyPair);
-						nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
+														await _ordersService.GetOrderFromHistory(currentState.OpenPositionOrder.ClientId, currentState.OpenPositionOrder.CurrencyPair);
+
+						if (serverSideOpenPositionOrder != null)
+						{
+							if (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Filled)
+							{
+								nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
+								var nextProcessor = new BuyOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
+								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
+							}
+							else
+								nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
+						}
+						else
+							throw;
 					}
 					else
 						throw;

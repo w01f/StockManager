@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
@@ -9,6 +10,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -48,7 +50,25 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 		{
 			if (nextState.OpenPositionOrder.OrderStateType == OrderStateType.PartiallyFilled)
 			{
-				await _ordersService.CancelOrder(currentState.OpenPositionOrder);
+				try
+				{
+					await _ordersService.CancelOrder(currentState.OpenPositionOrder);
+				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Order not found") ?? false)
+					{
+						var activeOrders = await _ordersService.GetActiveOrders(currentState.OpenPositionOrder.CurrencyPair);
+						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.OpenPositionOrder.ClientId) ??
+														await _ordersService.GetOrderFromHistory(currentState.OpenPositionOrder.ClientId, currentState.OpenPositionOrder.CurrencyPair);
+
+						if (serverSideOpenPositionOrder?.OrderStateType != OrderStateType.Filled)
+							throw;
+					}
+					else
+						throw;
+				}
+
 				nextState.OpenPositionOrder.OrderStateType = OrderStateType.Filled;
 			}
 

@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
+using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -46,7 +49,37 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			if (syncWithStock)
-				await _ordersService.CancelOrder(currentState.StopLossOrder);
+			{
+				try
+				{
+					await _ordersService.CancelOrder(currentState.StopLossOrder);
+				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Order not found") ?? false)
+					{
+						var activeOrders = await _ordersService.GetActiveOrders(currentState.StopLossOrder.CurrencyPair);
+						var serverSideStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.StopLossOrder.ClientId) ??
+													await _ordersService.GetOrderFromHistory(currentState.StopLossOrder.ClientId, currentState.StopLossOrder.CurrencyPair);
+
+						if (serverSideStopLossOrder != null)
+						{
+							if (serverSideStopLossOrder.OrderStateType == OrderStateType.Filled)
+							{
+								nextState.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
+								var nextProcessor = new StopLossOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
+								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
+							}
+							else
+								nextState.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
+						}
+						else
+							throw;
+					}
+					else
+						throw;
+				}
+			}
 
 			nextState.StopLossOrder.ClientId =  Guid.NewGuid();
 			nextState.StopLossOrder = await _ordersService.CreateSellMarketOrder(nextState.StopLossOrder);

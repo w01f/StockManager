@@ -11,38 +11,46 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public class CandleLoadingService
 	{
+		private static readonly object DbOperationLocker = new object();
+		private static readonly object CandleProcessLocker = new object();
+
 		private readonly IRepository<Domain.Core.Entities.Market.Candle> _candleRepository;
-		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly IMarketDataSocketConnector _marketDataSocketConnector;
+		private readonly IStockRestConnector _stockRestConnector;
+		private readonly IStockSocketConnector _stockSocketConnector;
 
 		private readonly IList<Tuple<string, CandlePeriod>> _existingSubscriptions = new List<Tuple<string, CandlePeriod>>();
+		private bool _loadMissingCandles = true;
 
 		public event EventHandler<CandlesUpdatedEventArgs> CandlesUpdated;
 
 		public CandleLoadingService(
 			IRepository<Domain.Core.Entities.Market.Candle> candleRepository,
-			IMarketDataRestConnector marketDataRestConnector,
-			IMarketDataSocketConnector marketDataSocketConnector)
+			IStockRestConnector stockRestConnector,
+			IStockSocketConnector stockSocketConnector)
 		{
 			_candleRepository = candleRepository ?? throw new ArgumentNullException(nameof(candleRepository));
-			_marketDataRestConnector = marketDataRestConnector ?? throw new ArgumentNullException(nameof(marketDataRestConnector));
-			_marketDataSocketConnector = marketDataSocketConnector ?? throw new ArgumentNullException(nameof(marketDataSocketConnector));
+			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
+			_stockSocketConnector = stockSocketConnector ?? throw new ArgumentNullException(nameof(stockSocketConnector));
 		}
 
-		public void InitSubscription(string currencyPairId, IList<CandlePeriod> candlePeriods)
+		public async Task InitSubscription(string currencyPairId, IList<CandlePeriod> candlePeriods)
 		{
 			foreach (var candlePeriod in candlePeriods)
 			{
 				if (_existingSubscriptions.Any(item => item.Item1 == currencyPairId && item.Item2 == candlePeriod))
 					return;
 
-				_marketDataSocketConnector.SubscribeOnCandles(currencyPairId, candlePeriod, receivedCandles =>
+				await _stockSocketConnector.SubscribeOnCandles(currencyPairId, candlePeriod, receivedCandles =>
 				{
-					UpdateCandles(currencyPairId, candlePeriod, receivedCandles);
-					OnCandlesUpdated(currencyPairId, candlePeriod);
+					lock (CandleProcessLocker)
+					{
+						UpdateCandles(currencyPairId, candlePeriod, receivedCandles);
+						OnCandlesUpdated(currencyPairId, candlePeriod);
+					}
 				});
 
 				_existingSubscriptions.Add(Tuple.Create(currencyPairId, candlePeriod));
+				_loadMissingCandles = false;
 			}
 		}
 
@@ -54,25 +62,35 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 			var momentsByPeriod = GetMomentsByPeriod(period, limit, currentMoment).ToList();
 			momentsByPeriod.Sort();
 
-			var storedCandles = _candleRepository.GetAll()
-				.Where(entity => entity.CurrencyPair == currencyPairId && entity.Period == period &&
-								 momentsByPeriod.Contains(entity.Moment))
-				.OrderBy(entity => entity.Moment)
-				.Select(entity => entity.ToModel())
-				.ToList();
+			IList<Candle> storedCandles;
+			lock (DbOperationLocker)
+			{
+				storedCandles = _candleRepository.GetAll()
+					.Where(entity => entity.CurrencyPair == currencyPairId && momentsByPeriod.Contains(entity.Moment))
+					.Select(entity => Tuple.Create(entity.ToModel(), entity.Period))
+					.ToList()
+					.GroupBy(candle => candle.Item1.Moment)
+					.Select(candleGroup =>
+					{
+						var candle = candleGroup.FirstOrDefault(tuple => tuple.Item2 == period) ?? candleGroup.First();
+						return candle.Item1;
+					})
+					.OrderBy(candle => candle.Moment)
+					.ToList();
+			}
 
-			if (momentsByPeriod.Count > storedCandles.Count)
+			if (_loadMissingCandles && storedCandles.Any(candle => !momentsByPeriod.Contains(candle.Moment)))
 			{
 				var momentsToRequest = momentsByPeriod
 					.Where(moment => storedCandles.All(candle => candle.Moment != moment))
 					.ToList();
 				var candlesLimit = momentsByPeriod.Count - momentsByPeriod.IndexOf(momentsToRequest.Min());
-				var newCandles = await _marketDataRestConnector.GetCandles(currencyPairId, period, candlesLimit);
+				var newCandles = await _stockRestConnector.GetCandles(currencyPairId, period, candlesLimit);
 
 				var lastMoment = momentsToRequest.Last();
 				if (newCandles.All(candle => candle.Moment != lastMoment))
 				{
-					var ticker = await _marketDataRestConnector.GetTicker(currencyPairId);
+					var ticker = await _stockRestConnector.GetTicker(currencyPairId);
 					newCandles.Add(new Candle
 					{
 						OpenPrice = ticker.LastPrice,
@@ -90,9 +108,12 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 					.ToList();
 
 				if (candlesToInsert.Any())
-					_candleRepository.Insert(candlesToInsert
-						.Select(candle => candle.ToEntity(currencyPairId, period))
-						.ToList());
+					lock (DbOperationLocker)
+					{
+						_candleRepository.Insert(candlesToInsert
+							.Select(candle => candle.ToEntity(currencyPairId, period))
+							.ToList());
+					}
 
 				var candlesUnion = storedCandles
 					.Union(candlesToInsert)
@@ -105,42 +126,61 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 			return storedCandles;
 		}
 
-		private void UpdateCandles(string currencyPairId, CandlePeriod candlePeriod, IList<Candle> candles)
+		public void UpdateCandles(string currencyPairId, CandlePeriod candlePeriod, IList<Candle> candles)
 		{
-			var storedCandles = _candleRepository.GetAll()
-				.Where(entity => entity.CurrencyPair == currencyPairId && entity.Period == candlePeriod)
-				.OrderByDescending(entity => entity.Moment)
-				.Take(candles.Count)
-				.Select(entity => entity.ToModel())
-				.ToList();
-
-			var newCandles = new List<Candle>();
-			var updatedCandles = new List<Candle>();
-			foreach (var receivedCandle in candles)
+			lock (DbOperationLocker)
 			{
-				var storedCandle = storedCandles.FirstOrDefault(candle => candle.Moment == receivedCandle.Moment);
-				if (storedCandle == null)
-					newCandles.Add(receivedCandle);
-				else
+				var storedEntities = _candleRepository.GetAll()
+					.Where(entity => entity.CurrencyPair == currencyPairId && entity.Period == candlePeriod)
+					.OrderByDescending(entity => entity.Moment)
+					.Take(candles.Count)
+					.ToList();
+
+				var storedCandles = storedEntities
+					.Select(entity => entity.ToModel())
+					.ToList();
+
+				var newCandles = new List<Candle>();
+				var updatedCandles = new List<Candle>();
+				foreach (var receivedCandle in candles)
 				{
-					storedCandle.OpenPrice = receivedCandle.OpenPrice;
-					storedCandle.ClosePrice = receivedCandle.ClosePrice;
-					storedCandle.MaxPrice = receivedCandle.MaxPrice;
-					storedCandle.MinPrice = receivedCandle.MinPrice;
-					storedCandle.VolumeInBaseCurrency = receivedCandle.VolumeInBaseCurrency;
-					storedCandle.VolumeInQuoteCurrency = receivedCandle.VolumeInQuoteCurrency;
-					updatedCandles.Add(storedCandle);
+					var storedCandle = storedCandles.FirstOrDefault(candle => candle.Moment == receivedCandle.Moment);
+					if (storedCandle == null)
+						newCandles.Add(receivedCandle);
+					else
+					{
+						storedCandle.OpenPrice = receivedCandle.OpenPrice;
+						storedCandle.ClosePrice = receivedCandle.ClosePrice;
+						storedCandle.MaxPrice = receivedCandle.MaxPrice;
+						storedCandle.MinPrice = receivedCandle.MinPrice;
+						storedCandle.VolumeInBaseCurrency = receivedCandle.VolumeInBaseCurrency;
+						storedCandle.VolumeInQuoteCurrency = receivedCandle.VolumeInQuoteCurrency;
+						updatedCandles.Add(storedCandle);
+					}
+				}
+
+				try
+				{
+					if (newCandles.Any())
+						_candleRepository.Insert(newCandles
+							.Select(candle => candle.ToEntity(currencyPairId, candlePeriod))
+							.ToList());
+
+					if (updatedCandles.Any())
+						_candleRepository.Update(updatedCandles
+							.Select(candle =>
+							{
+								var storedEntity = storedEntities.Single(entity => entity.Moment == candle.Moment);
+								return candle.ToEntity(currencyPairId, candlePeriod, storedEntity);
+							})
+							.ToList());
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine(e);
+					throw;
 				}
 			}
-			if (newCandles.Any())
-				_candleRepository.Insert(newCandles
-					.Select(candle => candle.ToEntity(currencyPairId, candlePeriod))
-					.ToList());
-
-			if (updatedCandles.Any())
-				_candleRepository.Update(updatedCandles
-					.Select(candle => candle.ToEntity(currencyPairId, candlePeriod))
-					.ToList());
 		}
 
 		private static IEnumerable<DateTime> GetMomentsByPeriod(CandlePeriod period, int limit, DateTime currentMoment)

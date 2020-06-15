@@ -1,13 +1,16 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
+using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -48,7 +51,38 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			if (syncWithStock)
-				await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+			{
+				try
+				{
+					await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Order not found") ?? false)
+					{
+						var activeOrders = await _ordersService.GetActiveOrders(currentState.ClosePositionOrder.CurrencyPair);
+						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.ClosePositionOrder.ClientId) ??
+														await _ordersService.GetOrderFromHistory(currentState.ClosePositionOrder.ClientId, currentState.ClosePositionOrder.CurrencyPair);
+
+						if (serverSideClosePositionOrder != null)
+						{
+							if (serverSideClosePositionOrder.OrderStateType == OrderStateType.Filled)
+							{
+								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
+								var nextProcessor = new SellOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
+								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
+							}
+							else
+								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
+						}
+						else
+							throw;
+					}
+					else
+						throw;
+				}
+			}
+			
 			nextState.ClosePositionOrder.OrderStateType = OrderStateType.Pending;
 
 			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);

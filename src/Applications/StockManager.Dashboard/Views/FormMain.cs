@@ -12,7 +12,7 @@ namespace StockManager.Dashboard.Views
 {
 	public partial class FormMain : RibbonForm
 	{
-		private readonly MainController _controller;
+		//private readonly MainController _controller;
 
 		public FormMain()
 		{
@@ -26,7 +26,7 @@ namespace StockManager.Dashboard.Views
 		[Inject]
 		public FormMain(MainController controller) : this()
 		{
-			_controller = controller;
+			//_controller = controller;
 		}
 
 		#region Methods

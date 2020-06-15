@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
-using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.OpenPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
@@ -10,7 +9,7 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.AsyncWorker
 {
-	public class TradingPositionWorkerFactory : ITradingPositionWorkerFactory
+	public class TradingPositionWorkerFactory
 	{
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly OrderBookLoadingService _orderBookLoadingService;
@@ -37,17 +36,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(_configurationService));
 		}
 
-		public TradingPositionWorker CreateWorkerWithExistingPosition(TradingPosition tradingPosition, Action<TradingPositionWorker, PositionChangedEventArgs> positionChangedCallback)
+		public async Task<TradingPositionWorker> CreateWorkerWithExistingPosition(TradingPosition tradingPosition, Action<TradingPositionWorker, PositionChangedEventArgs> positionChangedCallback)
 		{
 			var positionWorker = CreateNewWorker(positionChangedCallback);
-			positionWorker.LoadExistingPosition(tradingPosition);
+			await positionWorker.LoadExistingPosition(tradingPosition);
 			return positionWorker;
 		}
 
-		public async Task<TradingPositionWorker> CreateWorkerWithNewPosition(NewOrderPositionInfo newPositionInfo, Action<TradingPositionWorker, PositionChangedEventArgs> positionChangedCallback)
+		public TradingPositionWorker CreateWorkerWithNewPosition(Action<TradingPositionWorker, PositionChangedEventArgs> positionChangedCallback)
 		{
 			var positionWorker = CreateNewWorker(positionChangedCallback);
-			await positionWorker.CreateNewPosition(newPositionInfo);
 			return positionWorker;
 		}
 
@@ -59,7 +57,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				_tradingReportsService,
 				_marketPendingPositionAnalysisService,
 				_marketOpenPositionAnalysisService,
-				_tradingPositionService
+				_tradingPositionService,
+				_configurationService
 			);
 
 			worker.PositionChanged += (o, e) => positionChangedCallback((TradingPositionWorker)o, e);

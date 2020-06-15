@@ -1,8 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.Reflection;
-using System.Threading;
-using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
@@ -13,70 +11,29 @@ namespace StockManager.TradingBot
 {
 	class Program
 	{
-		static int Main()
+		static void Main()
 		{
 			CompositionRoot.Initialize(new DependencyInitializer());
-
-			var configurationService = CompositionRoot.Resolve<ConfigurationService>();
 
 			var tradingEventsObserver = CompositionRoot.Resolve<TradingEventsObserver>();
 			tradingEventsObserver.PositionChanged += OnTradingEventsObserverPositionChanged;
 
-			CompositionRoot.Resolve<ConfigurationService>()
-				.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location), "Settings"));
+			var configurationService = CompositionRoot.Resolve<ConfigurationService>();
+			configurationService.InitializeSettings(Path.Combine(Path.GetDirectoryName(Assembly.GetEntryAssembly()?.Location), "Settings"));
 
 			var tradingController = CompositionRoot.Resolve<ITradingController>();
-
-			var result = 0;
-			var now = DateTime.Now;
-			var dueDateTimeSpan = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 15).AddMinutes(1) - now;
-			var periodTimeSpan = TimeSpan.FromMinutes(1);
-
-			var taskComplete = true;
-			TimerCallback timerCallback = async e =>
+			tradingController.Exception += (o, e) =>
 			{
-				if (!taskComplete)
-					return;
-
-				taskComplete = false;
-				try
-				{
-					Console.WriteLine("Iteration started at {0}", DateTime.Now);
-
-					var watch = System.Diagnostics.Stopwatch.StartNew();
-
-					var tradingSettings = configurationService.GetTradingSettings();
-					tradingSettings.Period = CandlePeriod.Minute5;
-					tradingSettings.Moment = DateTime.UtcNow;
-					tradingSettings.BaseOrderSide = OrderSide.Buy;
-
-					configurationService.UpdateTradingSettings(tradingSettings);
-
-					//await tradingController.StartTrading();
-
-					watch.Stop();
-					Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
-
-					result = 0;
-				}
-				catch (Exception exception)
-				{
-					Console.ForegroundColor = ConsoleColor.Red;
-					Console.WriteLine("Iteration failed");
-					Console.WriteLine(exception);
-					Console.ForegroundColor = ConsoleColor.White;
-				}
-				finally
-				{
-					taskComplete = true;
-				}
+				Console.ForegroundColor = ConsoleColor.Red;
+				Console.WriteLine("Trading failed");
+				Console.WriteLine((Exception)e.ExceptionObject);
+				Console.ForegroundColor = ConsoleColor.White;
 			};
-
-			var tradingTimer = new Timer(timerCallback, null, dueDateTimeSpan, periodTimeSpan);
-			GC.KeepAlive(tradingTimer);
-
+			
+			Console.WriteLine("Trading started at {0}", DateTime.Now);
+			tradingController.StartTrading();
+				
 			Console.ReadLine();
-			return result;
 		}
 
 		private static void OnTradingEventsObserverPositionChanged(object sender, PositionChangedEventArgs e)
@@ -104,6 +61,7 @@ namespace StockManager.TradingBot
 					Console.WriteLine($"Position Closed Due StopLoss {e.Details}");
 					break;
 			}
+			
 			Console.ResetColor();
 		}
 	}

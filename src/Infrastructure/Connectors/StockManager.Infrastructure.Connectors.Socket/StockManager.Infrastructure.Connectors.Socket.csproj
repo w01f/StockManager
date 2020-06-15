@@ -6,10 +6,11 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="WebSocket4Net" Version="0.15.2" />
+    <PackageReference Include="Websocket.Client" Version="4.3.15" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Utilities\StockManager.Infrastructure.Utilities.Configuration\StockManager.Infrastructure.Utilities.Configuration.csproj" />
     <ProjectReference Include="..\StockManager.Infrastructure.Connectors.Common\StockManager.Infrastructure.Connectors.Common.csproj" />
   </ItemGroup>
 

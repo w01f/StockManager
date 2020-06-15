@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Entities.Trading;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
-using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Logging.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.Workflow
@@ -17,13 +17,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 		public TradingWorkflowManager(IRepository<Order> orderRepository,
 			IRepository<OrderHistory> orderHistoryRepository,
-			ITradingDataConnector tradingDataConnector,
 			IOrdersService ordersService,
 			ILoggingService loggingService)
 		{
 			_workflowProcessors.Add(new OpenPositionProcessor(orderRepository, ordersService, loggingService));
 			_workflowProcessors.Add(new BuyOrderUpdatingProcessor(orderRepository, ordersService, loggingService));
-			_workflowProcessors.Add(new BuyOrderCancellingProcessor(orderRepository, tradingDataConnector, ordersService, loggingService));
+			_workflowProcessors.Add(new BuyOrderCancellingProcessor(orderRepository, ordersService, loggingService));
 			_workflowProcessors.Add(new BuyOrderFillingProcessor(orderRepository, ordersService, loggingService));
 			_workflowProcessors.Add(new SellOrderUpdatingProcessor(orderRepository, ordersService, loggingService));
 			_workflowProcessors.Add(new SellOrderCancellingProcessor(orderRepository, ordersService, loggingService));
@@ -40,20 +39,22 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			ITradingPositionStateProcessor selectedProcessor;
+			var completedProcessors = new List<ITradingPositionStateProcessor>();
 			var latestCurrentState = currentState;
 			do
 			{
 				selectedProcessor = null;
-				foreach (var stateProcessor in _workflowProcessors)
+				foreach (var stateProcessor in _workflowProcessors.Where(processor => !completedProcessors.Contains(processor)))
 				{
-					if (latestCurrentState == null || stateProcessor.IsAllowToProcess(currentState, nextState))
+					if (latestCurrentState == null || stateProcessor.IsAllowToProcess(latestCurrentState, nextState))
 					{
 						selectedProcessor = stateProcessor;
+						completedProcessors.Add(selectedProcessor);
 						break;
 					}
 				}
 				if (selectedProcessor != null)
-					latestCurrentState = await selectedProcessor.ProcessTradingPositionChanging(currentState,
+					latestCurrentState = await selectedProcessor.ProcessTradingPositionChanging(latestCurrentState,
 						nextState,
 						syncWithStock,
 						onPositionChangedCallback);

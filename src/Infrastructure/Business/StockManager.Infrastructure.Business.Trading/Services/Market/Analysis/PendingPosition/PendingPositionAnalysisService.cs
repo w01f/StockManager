@@ -16,14 +16,14 @@ using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition
 {
-	public class PendingPositionWilliamsRAnalysisService : IMarketPendingPositionAnalysisService
+	public class PendingPositionAnalysisService : IMarketPendingPositionAnalysisService
 	{
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly OrderBookLoadingService _orderBookLoadingService;
 		private readonly IIndicatorComputingService _indicatorComputingService;
 		private readonly ConfigurationService _configurationService;
 
-		public PendingPositionWilliamsRAnalysisService(CandleLoadingService candleLoadingService,
+		public PendingPositionAnalysisService(CandleLoadingService candleLoadingService,
 			OrderBookLoadingService orderBookLoadingService,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
@@ -37,8 +37,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		public async Task<PendingPositionInfo> ProcessMarketPosition(TradingPosition activeTradingPosition)
 		{
 			var settings = _configurationService.GetTradingSettings();
+			var moment = settings.Moment ?? DateTime.UtcNow;
 
-			var williamsRSettings = new CommonIndicatorSettings
+			var rsiSettings = new CommonIndicatorSettings
 			{
 				Period = 14
 			};
@@ -53,8 +54,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
 				activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 				settings.Period,
-				williamsRSettings.Period * 2,
-				settings.Moment))
+				rsiSettings.Period * 2,
+				moment))
 				.ToList();
 
 			if (!targetPeriodLastCandles.Any())
@@ -64,8 +65,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetHigherFramePeriod(),
-					williamsRSettings.Period,
-					settings.Moment))
+					rsiSettings.Period,
+					moment))
 				.ToList();
 			if (!higherPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
@@ -73,8 +74,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
-					williamsRSettings.Period,
-					settings.Moment))
+					rsiSettings.Period,
+					moment))
 				.ToList();
 
 			if (!lowerPeriodCandles.Any())
@@ -105,16 +106,18 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				}
 			}
 
-			var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
+			var candlesCount = targetPeriodLastCandles.Count;
+			var period = (candlesCount - 2) > rsiSettings.Period ? rsiSettings.Period : candlesCount - 2;
+			var rsiValues = _indicatorComputingService.ComputeRelativeStrengthIndex(
 					targetPeriodLastCandles,
-					williamsRSettings.Period)
+					period)
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
-			var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
-			var previousWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 2);
-			var maxWilliamsRValue = williamsRValues.Where(item => item.Value.HasValue).Select(item => item.Value.Value).Max();
+			var currentRSIValue = rsiValues.ElementAtOrDefault(rsiValues.Count - 1);
+			var previousRSIValue = rsiValues.ElementAtOrDefault(rsiValues.Count - 2);
+			var minWilliamsRValue = rsiValues.Where(item => item.Value.HasValue).Select(item => item.Value.Value).Min();
 
-			if (currentWilliamsRValue?.Value == null)
+			if (currentRSIValue?.Value == null)
 				throw new NoNullAllowedException("No WilliamR values calculated");
 
 			var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
@@ -128,11 +131,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
 			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram >= 0;
 
-			if (currentWilliamsRValue.Value >= (useExtendedBorders ? 50 : 80) &&
-				currentWilliamsRValue.Value < 95 &&
-				((activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentWilliamsRValue.Value < previousWilliamsRValue?.Value) ||
+			if (currentRSIValue.Value <= (useExtendedBorders ? 50 : 40) &&
+				currentRSIValue.Value > 25 &&
+				((activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentRSIValue.Value > previousRSIValue?.Value) ||
 				(activeTradingPosition.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
-				Math.Abs(maxWilliamsRValue - currentWilliamsRValue.Value ?? 0) < 20)
+				Math.Abs(minWilliamsRValue - currentRSIValue.Value ?? 0) < 20)
 			{
 				decimal stopOpenPrice;
 				decimal openPrice;

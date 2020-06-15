@@ -13,11 +13,8 @@ namespace StockManager.SandBox
 				.ToSelf()
 				.InSingletonScope();
 
-			Bind<IMarketDataRestConnector>()
-				.To<MarketDataRestConnector>();
-
-			Bind<ITradingDataConnector>()
-				.To<TradingDataConnector>();
+			Bind<IStockRestConnector>()
+				.To<StockRestConnector>();
 
 			Bind<CandleLoadingService>()
 				.ToSelf();

@@ -1,14 +1,23 @@
-﻿using System.Collections.Generic;
-
-namespace StockManager.Infrastructure.Connectors.Socket.Connection
+﻿namespace StockManager.Infrastructure.Connectors.Socket.Connection
 {
 	interface ISocketSubscriptionRequest
 	{
-		IList<string> NotificationMethodNames { get; }
+		string SnapshotMethodName { get; }
+		string NotificationMethodName { get; }
+		string UnsubscribeMethodName { get; }
+
+		object GetSubscriptionParameters();
 	}
 
 	class SocketSubscriptionRequest<TRequestParameters> : SocketRequest<TRequestParameters>, ISocketSubscriptionRequest where TRequestParameters : class
 	{
-		public IList<string> NotificationMethodNames { get; } = new List<string>();
+		public string SnapshotMethodName { get; set; }
+		public string NotificationMethodName { get; set; }
+		public string UnsubscribeMethodName { get; set; }
+		
+		public object GetSubscriptionParameters()
+		{
+			return RequestParameters;
+		}
 	}
 }

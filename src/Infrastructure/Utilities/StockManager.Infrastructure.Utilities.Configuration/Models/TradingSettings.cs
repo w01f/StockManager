@@ -8,7 +8,7 @@ namespace StockManager.Infrastructure.Utilities.Configuration.Models
 	{
 		public List<string> QuoteCurrencies { get; set; }
 
-		public DateTime Moment { get; set; }
+		public DateTime? Moment { get; set; }
 		public CandlePeriod Period { get; set; }
 		public OrderSide BaseOrderSide { get; set; }
 

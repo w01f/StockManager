@@ -40,6 +40,8 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 		public static void SyncWithAnotherOrder(this Order targetOrder, Order sourceOrder)
 		{
 			targetOrder.ExtId = sourceOrder.ExtId;
+			if (sourceOrder.ParentClientId != Guid.Empty)
+				targetOrder.ParentClientId = sourceOrder.ParentClientId;
 
 			targetOrder.OrderSide = sourceOrder.OrderSide;
 			targetOrder.OrderType = sourceOrder.OrderType;

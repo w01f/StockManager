@@ -24,7 +24,7 @@ namespace StockManager.Infrastructure.Connectors.Rest.Connection
 			if (!String.IsNullOrEmpty(apiKey) && !String.IsNullOrEmpty(secretKey))
 				client.Authenticator = new HttpBasicAuthenticator(apiKey, secretKey);
 
-			var response = await client.ExecuteTaskAsync(request);
+			var response = await client.ExecuteAsync(request);
 
 			if (response.StatusCode == HttpStatusCode.OK)
 				return response;

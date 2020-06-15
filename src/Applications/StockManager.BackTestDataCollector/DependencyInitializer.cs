@@ -22,8 +22,8 @@ namespace StockManager.BackTestDataCollector
 			Bind(typeof(IRepository<>))
 				.To(typeof(CommonRepository<>));
 
-			Bind<IMarketDataRestConnector>()
-				.To<MarketDataRestConnector>();
+			Bind<IStockRestConnector>()
+				.To<StockRestConnector>();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();

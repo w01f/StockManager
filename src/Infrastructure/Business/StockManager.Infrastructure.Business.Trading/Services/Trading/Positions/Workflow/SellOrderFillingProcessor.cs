@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
@@ -8,6 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -50,11 +52,38 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			if (syncWithStock && currentState.ClosePositionOrder.OrderStateType != OrderStateType.Pending)
-				await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+			{
+				try
+				{
+					await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Order not found") ?? false)
+					{
+						var activeOrders = await _ordersService.GetActiveOrders(currentState.ClosePositionOrder.CurrencyPair);
+						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.ClosePositionOrder.ClientId) ??
+														await _ordersService.GetOrderFromHistory(currentState.ClosePositionOrder.ClientId, currentState.ClosePositionOrder.CurrencyPair);
 
-			if (!(nextState.StopLossOrder.OrderStateType == OrderStateType.Cancelled ||
+						if (serverSideClosePositionOrder?.OrderStateType != OrderStateType.Filled)
+							throw;
+					}
+					else
+						throw;
+				}
+			}
+
+			if (!(nextState.StopLossOrder.OrderStateType == OrderStateType.Pending ||
+				nextState.StopLossOrder.OrderStateType == OrderStateType.Cancelled ||
 				nextState.StopLossOrder.OrderStateType == OrderStateType.Expired))
-				nextState.StopLossOrder = await _ordersService.CancelOrder(currentState.StopLossOrder);
+				try
+				{
+					nextState.StopLossOrder = await _ordersService.CancelOrder(currentState.StopLossOrder);
+				}
+				catch
+				{
+					// ignored
+				}
 
 			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);
 			if (closeOrderEntity == null)

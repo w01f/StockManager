@@ -7,9 +7,13 @@ using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.Open
 using StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.PendingPosition;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Common;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.AsyncWorker;
+using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.Workflow;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Rest.Services.HitBtc;
+using StockManager.Infrastructure.Connectors.Socket.Services.HitBtc;
 using StockManager.Infrastructure.Data.SQLite;
 using StockManager.Infrastructure.Data.SQLite.Repositories;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -31,16 +35,17 @@ namespace StockManager.TradingBot
 				.InSingletonScope();
 
 			Bind<SQLiteDataContext>()
-				.ToSelf()
-				.InSingletonScope();
+				.ToSelf();
 
 			Bind(typeof(IRepository<>))
-				.To(typeof(CommonRepository<>));
+				.To(typeof(CommonRepository<>))
+				.InSingletonScope();
 
-			Bind<IMarketDataRestConnector>()
-				.To<MarketDataRestConnector>();
-			Bind<ITradingDataConnector>()
-				.To<TradingDataConnector>();
+			Bind<IStockRestConnector>()
+				.To<StockRestConnector>();
+			Bind<IStockSocketConnector>()
+				.To<StockSocketConnector>()
+				.InSingletonScope();
 
 			Bind<IIndicatorComputingService>()
 				.To<TradyIndicatorComputingService>();
@@ -48,19 +53,33 @@ namespace StockManager.TradingBot
 			Bind<CandleLoadingService>()
 				.ToSelf()
 				.InSingletonScope();
+			Bind<OrderBookLoadingService>()
+				.ToSelf()
+				.InSingletonScope();
+			Bind<TradingReportsService>()
+				.ToSelf()
+				.InSingletonScope();
 
 			Bind<IMarketNewPositionAnalysisService>()
-				.To<TripleFrameWilliamRStrategyAnalysisService>();
+				.To<TripleFrameRSIStrategyAnalysisService>();
 			Bind<IMarketPendingPositionAnalysisService>()
-				.To<PendingPositionWilliamsRAnalysisService>();
+				.To<PendingPositionAnalysisService>();
 			Bind<IMarketOpenPositionAnalysisService>()
 				.To<OpenPositionAnalysisService>();
 
+			Bind<IOrdersService>()
+				.To<OrdersService>();
+			Bind<TradingPositionWorkerFactory>()
+				.ToSelf()
+				.InSingletonScope();
+			Bind<TradingWorkflowManager>()
+				.ToSelf()
+				.InSingletonScope();
 			Bind<ITradingPositionService>()
 				.To<TradingPositionService>();
 
 			Bind<ITradingController>()
-				.To<WebAPITradingController>();
+				.To<SocketTradingController>();
 		}
 	}
 }

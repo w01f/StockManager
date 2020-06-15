@@ -17,17 +17,23 @@ using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.AsyncWorker
 {
 	public class TradingPositionWorker
 	{
+		private readonly object _positionUpdatingLocker = new object();
+
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly OrderBookLoadingService _orderBookLoadingService;
 		private readonly TradingReportsService _tradingReportsService;
 		private readonly IMarketPendingPositionAnalysisService _marketPendingPositionAnalysisService;
 		private readonly IMarketOpenPositionAnalysisService _marketOpenPositionAnalysisService;
 		private readonly ITradingPositionService _tradingPositionService;
+		private readonly ConfigurationService _configurationService;
+
+		private CandlePeriod _workingCandlePeriod;
 
 		public TradingPosition Position { get; private set; }
 
@@ -38,7 +44,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			TradingReportsService tradingReportsService,
 			IMarketPendingPositionAnalysisService marketPendingPositionAnalysisService,
 			IMarketOpenPositionAnalysisService marketOpenPositionAnalysisService,
-			ITradingPositionService tradingPositionService)
+			ITradingPositionService tradingPositionService,
+			ConfigurationService configurationService)
 		{
 			_candleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
 			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
@@ -46,19 +53,20 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_marketPendingPositionAnalysisService = marketPendingPositionAnalysisService ?? throw new ArgumentNullException(nameof(marketPendingPositionAnalysisService));
 			_marketOpenPositionAnalysisService = marketOpenPositionAnalysisService ?? throw new ArgumentNullException(nameof(marketOpenPositionAnalysisService));
 			_tradingPositionService = tradingPositionService ?? throw new ArgumentNullException(nameof(tradingPositionService));
+			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
-		public void LoadExistingPosition(TradingPosition existingPosition)
+		public async Task LoadExistingPosition(TradingPosition existingPosition)
 		{
 			Position = existingPosition;
-			SubscribeOnTradingEvents();
+			await SubscribeOnTradingEvents();
 		}
 
 		public async Task CreateNewPosition(NewOrderPositionInfo positionInfo)
 		{
+			// ReSharper disable once InconsistentlySynchronizedField
 			Position = await _tradingPositionService.OpenPosition(positionInfo, OnPositionChanged);
-			OnPositionChanged(TradingEventType.NewPosition);
-			SubscribeOnTradingEvents();
+			await SubscribeOnTradingEvents();
 		}
 
 		private async Task AnalyzePosition()
@@ -129,10 +137,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			}
 		}
 
-		private void SubscribeOnTradingEvents()
+		private async Task SubscribeOnTradingEvents()
 		{
+			_workingCandlePeriod = _configurationService.GetTradingSettings().Period;
 			_candleLoadingService.CandlesUpdated += OnCandlesUpdated;
+
+			await _orderBookLoadingService.InitSubscription(Position.CurrencyPair.Id);
 			_orderBookLoadingService.OrderBookUpdated += OnOrderBookUpdated;
+
+			await _tradingReportsService.InitSubscription(Position.CurrencyPair);
 			_tradingReportsService.OrdersUpdated += OnOrdersUpdated;
 		}
 
@@ -145,23 +158,41 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 		private void OnCandlesUpdated(object sender, CandlesUpdatedEventArgs e)
 		{
-			if (Position.CurrencyPairId != e.CurrencyPairId)
-				return;
+			lock (_positionUpdatingLocker)
+			{
+				if (e.Period != _workingCandlePeriod || Position.CurrencyPairId != e.CurrencyPairId)
+					return;
 
-			AnalyzePosition().Wait();
+				if (Position.IsClosedPosition)
+					return;
+
+				AnalyzePosition().Wait();
+			}
 		}
 
 		private void OnOrderBookUpdated(object sender, OrderBookUpdatedEventArgs e)
 		{
-			if (Position.CurrencyPairId != e.CurrencyPairId)
-				return;
+			lock (_positionUpdatingLocker)
+			{
+				if (Position.CurrencyPairId != e.CurrencyPairId)
+					return;
 
-			UpdateOrderPrice().Wait();
+				if (Position.IsClosedPosition)
+					return;
+
+				Task.WaitAll(UpdateOrderPrice());
+			}
 		}
 
 		private void OnOrdersUpdated(object sender, TradingReportEventArgs e)
 		{
-			UpdatePosition(e.ChangedOrder).Wait();
+			lock (_positionUpdatingLocker)
+			{
+				if(Position.IsClosedPosition)
+					return;
+
+				Task.WaitAll(UpdatePosition(e.ChangedOrder));
+			}
 		}
 
 		private void OnPositionChanged(PositionChangedEventArgs eventArgs)
@@ -172,11 +203,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			PositionChanged?.Invoke(this, eventArgs);
 			if (positionClosed)
 				PositionChanged = null;
-		}
-
-		private void OnPositionChanged(TradingEventType eventType)
-		{
-			OnPositionChanged(new PositionChangedEventArgs(eventType, Position.CurrencyPairId));
 		}
 	}
 }

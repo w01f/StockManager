@@ -38,6 +38,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		public async Task<OpenPositionInfo> ProcessMarketPosition(TradingPosition activeTradingPosition)
 		{
 			var settings = _configurationService.GetTradingSettings();
+			var moment = settings.Moment ?? DateTime.UtcNow;
 
 			var initialPositionInfo = new UpdateClosePositionInfo
 			{
@@ -48,7 +49,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			OpenPositionInfo newPositionInfo = null;
 
-			var williamsRSettings = new CommonIndicatorSettings
+			var rsiSettings = new CommonIndicatorSettings
 			{
 				Period = 10
 			};
@@ -62,7 +63,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			var candleRangeSize = new[]
 			{
-				williamsRSettings.Period + 2,
+				rsiSettings.Period + 2,
 				2
 			}.Max();
 
@@ -70,7 +71,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period,
 					candleRangeSize,
-					settings.Moment))
+					moment))
 				.ToList();
 
 			if (!targetPeriodLastCandles.Any())
@@ -80,8 +81,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetHigherFramePeriod(),
-					williamsRSettings.Period,
-					settings.Moment))
+					rsiSettings.Period,
+					moment))
 				.ToList();
 			if (!higherPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
@@ -89,8 +90,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
-					williamsRSettings.Period + 1,
-					settings.Moment))
+					rsiSettings.Period + 1,
+					moment))
 				.ToList();
 
 			if (!lowerPeriodCandles.Any())
@@ -130,14 +131,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					newPositionInfo = fixStopLossInfo;
 			}
 
-			var williamsRValues = _indicatorComputingService.ComputeWilliamsR(
+			var candlesCount = targetPeriodLastCandles.Count;
+			var period = (candlesCount - 2) > rsiSettings.Period ? rsiSettings.Period : candlesCount - 2;
+			var rsiValues = _indicatorComputingService.ComputeRelativeStrengthIndex(
 					targetPeriodLastCandles,
-					williamsRSettings.Period)
+					period)
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
-			var currentWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 1);
-			var previousWilliamsRValue = williamsRValues.ElementAtOrDefault(williamsRValues.Count - 2);
+			var currentRSIValue = rsiValues.ElementAtOrDefault(rsiValues.Count - 1);
+			var previousRSIValue = rsiValues.ElementAtOrDefault(rsiValues.Count - 2);
 
 			var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
 					higherPeriodLastCandles,
@@ -150,12 +153,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
 			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram < 0;
 
-			if ((currentWilliamsRValue?.Value <= (useExtendedBorders ? 30 : 20) &&
-					currentWilliamsRValue.Value > 5 &&
-					currentWilliamsRValue.Value > previousWilliamsRValue?.Value) ||
+			if ((currentRSIValue?.Value >= (useExtendedBorders ? 60 : 70) &&
+					currentRSIValue.Value < 80 &&
+					currentRSIValue.Value < previousRSIValue?.Value) ||
 				(activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentWilliamsRValue?.Value > 80 &&
-					currentWilliamsRValue.Value > previousWilliamsRValue?.Value))
+					currentRSIValue?.Value < 30 &&
+					currentRSIValue.Value < previousRSIValue?.Value))
 			{
 				var updatePositionInfo = new UpdateClosePositionInfo
 				{
@@ -189,11 +192,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					newPositionInfo = updatePositionInfo;
 			}
 			else if (activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentWilliamsRValue?.Value > (useExtendedBorders ? 30 : 20) &&
-					currentWilliamsRValue.Value < previousWilliamsRValue?.Value)
+					currentRSIValue?.Value < (useExtendedBorders ? 60 : 70) &&
+					currentRSIValue.Value > previousRSIValue?.Value)
 				newPositionInfo = new SuspendPositionInfo();
 			else if (activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentWilliamsRValue?.Value <= 5)
+					currentRSIValue?.Value >= 80)
 				newPositionInfo = new SuspendPositionInfo();
 
 			if (newPositionInfo == null)

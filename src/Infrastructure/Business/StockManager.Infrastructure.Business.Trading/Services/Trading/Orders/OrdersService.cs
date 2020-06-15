@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
@@ -14,23 +15,33 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 	public class OrdersService : IOrdersService
 	{
 		private readonly OrderBookLoadingService _orderBookLoadingService;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IStockRestConnector _stockRestConnector;
 		private readonly ConfigurationService _configurationService;
 
 		public OrdersService(OrderBookLoadingService orderBookLoadingService,
-			ITradingDataConnector tradingDataConnector,
+			IStockRestConnector tradingDataConnector,
 			ConfigurationService configurationService)
 		{
 			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
-			_tradingDataConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
+			_stockRestConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
+		}
+
+		public async Task<IList<Order>> GetActiveOrders(Infrastructure.Common.Models.Market.CurrencyPair currencyPair)
+		{
+			return await _stockRestConnector.GetActiveOrders(currencyPair);
+		}
+
+		public async Task<Order> GetOrderFromHistory(Guid clientOrderId, Infrastructure.Common.Models.Market.CurrencyPair currencyPair)
+		{
+			return await _stockRestConnector.GetOrderFromHistory(clientOrderId, currencyPair);
 		}
 
 		public async Task<Order> CreateBuyLimitOrder(Order order)
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
 			var currencyPair = order.CurrencyPair;
-			var quoteTradingBalance = await _tradingDataConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
+			var quoteTradingBalance = await _stockRestConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
 			if (quoteTradingBalance?.Available <= 0)
 				throw new BusinessException($"Trading balance is empty or not available: {currencyPair.Id}");
 
@@ -43,6 +54,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				{
 					if (needToResetOrder)
 					{
+						order.ClientId  = Guid.NewGuid();
 						order.OrderType = OrderType.Limit;
 						order.OrderStateType = OrderStateType.New;
 						order.StopPrice = null;
@@ -58,7 +70,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 				try
 				{
-					serverSideOrder = await _tradingDataConnector.CreateOrder(order, true);
+					serverSideOrder = await _stockRestConnector.CreateOrder(order, true);
 				}
 				catch (Exception)
 				{
@@ -66,7 +78,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				}
 			} while (serverSideOrder == null || serverSideOrder.OrderStateType == OrderStateType.Expired);
 
-			if (serverSideOrder == null)
+			if (serverSideOrder == null || serverSideOrder.OrderStateType == OrderStateType.Cancelled)
 				throw new BusinessException($"Error while creating new position occured: {currencyPair.Id}");
 
 			order.SyncWithAnotherOrder(serverSideOrder);
@@ -76,7 +88,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<Order> CreateSellLimitOrder(Order order)
 		{
-			var baseTradingBalance = await _tradingDataConnector.GetTradingBalance(order.CurrencyPair.BaseCurrencyId);
+			var baseTradingBalance = await _stockRestConnector.GetTradingBalance(order.CurrencyPair.BaseCurrencyId);
 			if (baseTradingBalance?.Available <= 0)
 				throw new BusinessException($"Trading balance is empty or not available: {order.CurrencyPair.Id}");
 
@@ -104,7 +116,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 				try
 				{
-					serverSideOrder = await _tradingDataConnector.CreateOrder(order, true);
+					serverSideOrder = await _stockRestConnector.CreateOrder(order, true);
 				}
 				catch
 				{
@@ -119,7 +131,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<Order> CreateSellMarketOrder(Order order)
 		{
-			var baseTradingBalance = await _tradingDataConnector.GetTradingBalance(order.CurrencyPair.BaseCurrencyId);
+			var baseTradingBalance = await _stockRestConnector.GetTradingBalance(order.CurrencyPair.BaseCurrencyId);
 			if (baseTradingBalance?.Available <= 0)
 				throw new BusinessException($"Trading balance is empty or not available: {order.CurrencyPair.Id}");
 
@@ -128,7 +140,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				throw new BusinessException($"Trading balance is not enough to open order: {order.CurrencyPair.Id}");
 
 			order.ClientId = Guid.NewGuid();
-			var serverSideOrder = await _tradingDataConnector.CreateOrder(order, false);
+			var serverSideOrder = await _stockRestConnector.CreateOrder(order, false);
 			order.SyncWithAnotherOrder(serverSideOrder);
 
 			return order;
@@ -136,7 +148,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<Order> CancelOrder(Order order)
 		{
-			var serverSideOrder = await _tradingDataConnector.CancelOrder(order);
+			var serverSideOrder = await _stockRestConnector.CancelOrder(order);
 			if (serverSideOrder.OrderStateType != OrderStateType.Cancelled)
 				throw new BusinessException("Cancelling order failed")
 				{

@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Data;
 using System.Linq;
 using System.Threading.Tasks;
-using StockManager.Infrastructure.Analysis.Common.Helpers;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Enums;
@@ -9,6 +9,7 @@ using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.NewPosition;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Settings;
+using StockManager.Infrastructure.Business.Trading.Services.Extensions.Connectors;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
@@ -18,17 +19,18 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 	public class TripleFrameRSIStrategyAnalysisService : BaseNewPositionAnalysisService, IMarketNewPositionAnalysisService
 	{
 		public TripleFrameRSIStrategyAnalysisService(CandleLoadingService candleLoadingService,
+			OrderBookLoadingService orderBookLoadingService,
 			IIndicatorComputingService indicatorComputingService,
 			ConfigurationService configurationService)
 		{
-			CandleLoadingService = candleLoadingService;
-			IndicatorComputingService = indicatorComputingService;
-			ConfigurationService = configurationService;
+			CandleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
+			OrderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
+			IndicatorComputingService = indicatorComputingService ?? throw new ArgumentNullException(nameof(indicatorComputingService));
+			ConfigurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
 		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
 		{
-			var settings = ConfigurationService.GetTradingSettings();
 			NewPositionInfo newPositionInfo;
 			var conditionCheckingResult = await CheckConditions(currencyPair);
 
@@ -38,17 +40,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
 					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					var candles = (await CandleLoadingService.LoadCandles(
-						currencyPair.Id,
-						settings.Period,
-						2,
-						settings.Moment)).ToList();
+					buyPositionInfo.OpenPrice = await OrderBookLoadingService.GetTopMeaningfulBidPrice(currencyPair);
 
-					//TODO Define stop prices
-					buyPositionInfo.OpenPrice = candles.Max(candle => candle.MaxPrice);
-					buyPositionInfo.OpenStopPrice = candles.Max(candle => candle.MaxPrice);
+					buyPositionInfo.OpenStopPrice = await OrderBookLoadingService.GetBottomAskPrice(currencyPair, 1);
 
-					buyPositionInfo.ClosePrice = candles.Min(candle => candle.MinPrice);
+					buyPositionInfo.ClosePrice =
+					buyPositionInfo.CloseStopPrice =
+						buyPositionInfo.OpenStopPrice;
+
+					buyPositionInfo.StopLossPrice = buyPositionInfo.OpenPrice - currencyPair.TickSize * 2000;
 
 					newPositionInfo = buyPositionInfo;
 					break;
@@ -60,10 +60,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			return newPositionInfo;
 		}
 
-		//TODO Try to extract logical steps into separate objects
 		protected override async Task<ConditionCheckingResult> CheckConditions(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
+			var moment = settings.Moment ?? DateTime.UtcNow;
 
 			var conditionCheckingResult = new ConditionCheckingResult() { ResultType = ConditionCheckingResultType.Failed };
 
@@ -74,14 +74,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				SignalPeriod = 9
 			};
 
-			var firtsFrameCandles = (await CandleLoadingService.LoadCandles(
+			var firstFrameCandles = (await CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period.GetHigherFramePeriod(),
 				firstFrameMACDSettings.RequiredCandleRangeSize,
-				settings.Moment)).ToList();
+				moment))
+				.OrderBy(candle => candle.Moment)
+				.ToList();
 
 			var firstFrameMACDValues = IndicatorComputingService.ComputeMACD(
-					firtsFrameCandles,
+					firstFrameCandles,
 					firstFrameMACDSettings.EMAPeriod1,
 					firstFrameMACDSettings.EMAPeriod2,
 					firstFrameMACDSettings.SignalPeriod)
@@ -89,168 +91,106 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.ToList();
 
 			var firstFrameCurrentMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 1);
-			var firstFrameOnePreviouseMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
+			var firstFrameOnePreviousMACDValue = firstFrameMACDValues.ElementAtOrDefault(firstFrameMACDValues.Count - 2);
 
 			//If all valuable parameters are not null
 			if (firstFrameCurrentMACDValue?.Histogram == null ||
-				firstFrameOnePreviouseMACDValue?.Histogram == null)
+				firstFrameOnePreviousMACDValue?.Histogram == null)
 			{
 				return conditionCheckingResult;
 			}
 
 			//if MACD higher then Signal then it is Bullish trend
 			//if Histogram is rising 
-			if (!(Math.Round(firstFrameCurrentMACDValue.Histogram.Value, 5) >= 0))
+			if (!(firstFrameCurrentMACDValue.Histogram.Value >= 0 ||
+				firstFrameCurrentMACDValue.Histogram.Value > firstFrameOnePreviousMACDValue.Histogram))
 			{
 				return conditionCheckingResult;
 			}
 
-			var isBullishTrendRising = Math.Round(firstFrameCurrentMACDValue.Histogram.Value - firstFrameOnePreviouseMACDValue.Histogram.Value, 5) >= 0;
-			var isBullishTrendJustBeganRising = isBullishTrendRising &&
-												Math.Round(firstFrameOnePreviouseMACDValue.Histogram.Value, 4) < 0;
+			var useExtendedBorders = firstFrameCurrentMACDValue.Histogram.Value >= 0;
 
-			var secondFrameRSISettings = new CommonIndicatorSettings()
+			var rsiSettings = new RSISettings
 			{
 				Period = 14
 			};
 
-			var secondFrameMACDSettings = new MACDSettings
-			{
-				EMAPeriod1 = 12,
-				EMAPeriod2 = 26,
-				SignalPeriod = 9
-			};
-
-			var candleRangeSize = new[] { secondFrameMACDSettings.RequiredCandleRangeSize, secondFrameRSISettings.RequiredCandleRangeSize }.Max();
-
-			var secondFrameCandles = (await CandleLoadingService.LoadCandles(
+			var secondFrameTargetPeriodCandles = (await CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period,
-				candleRangeSize,
-				settings.Moment)).ToList();
+				rsiSettings.Period + 2,
+				moment))
+				.OrderBy(candle => candle.Moment)
+				.ToList();
 
-			var secondFrameCurrentCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 1);
-			var secondFrameOnePreviouseCandle = secondFrameCandles.ElementAtOrDefault(secondFrameCandles.Count - 2);
-
-			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null ||
-				secondFrameOnePreviouseCandle?.VolumeInBaseCurrency == null)
-			{
+			var candlesCount = secondFrameTargetPeriodCandles.Count;
+			if (candlesCount < rsiSettings.Period)
 				return conditionCheckingResult;
-			}
 
-			//if previouse volum lower then current 
-			//if price changing direction from previouse candle to current
-			if (!(secondFrameCurrentCandle.VolumeInBaseCurrency > secondFrameOnePreviouseCandle.VolumeInBaseCurrency &&
-				  (secondFrameOnePreviouseCandle.IsFallingCandle || secondFrameCurrentCandle.OpenPrice < secondFrameOnePreviouseCandle.ClosePrice)))
-			{
+			var secondFrameCurrentCandle = secondFrameTargetPeriodCandles.ElementAtOrDefault(secondFrameTargetPeriodCandles.Count - 1);
+			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null)
 				return conditionCheckingResult;
-			}
 
+			var lowerPeriodCandles = (await CandleLoadingService.LoadCandles(
+					currencyPair.Id,
+					settings.Period.GetLowerFramePeriod(),
+					rsiSettings.Period,
+					moment))
+				.OrderBy(candle => candle.Moment)
+				.ToList();
+
+			if (!lowerPeriodCandles.Any())
+				throw new NoNullAllowedException("No candles loaded");
+			var currentLowPeriodCandle = lowerPeriodCandles.Last();
+
+			if (secondFrameCurrentCandle.Moment != currentLowPeriodCandle.Moment)
+			{
+				var lastLowPeriodCandles = lowerPeriodCandles
+					.Where(item => item.Moment > secondFrameCurrentCandle.Moment)
+					.OrderBy(item => item.Moment)
+					.ToList();
+
+				if (lastLowPeriodCandles.Any())
+				{
+					secondFrameTargetPeriodCandles.Add(new Candle
+					{
+						Moment = lastLowPeriodCandles.Last().Moment,
+						MaxPrice = lastLowPeriodCandles.Max(item => item.MaxPrice),
+						MinPrice = lastLowPeriodCandles.Min(item => item.MinPrice),
+						OpenPrice = lastLowPeriodCandles.First().OpenPrice,
+						ClosePrice = lastLowPeriodCandles.Last().ClosePrice,
+						VolumeInBaseCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInBaseCurrency),
+						VolumeInQuoteCurrency = lastLowPeriodCandles.Sum(item => item.VolumeInQuoteCurrency)
+					});
+				}
+			}
+			
+			var period = (candlesCount - 2) > rsiSettings.Period ? rsiSettings.Period : candlesCount - 2;
 			var secondFrameRSIValues = IndicatorComputingService.ComputeRelativeStrengthIndex(
-					secondFrameCandles,
-					secondFrameRSISettings.Period)
+					secondFrameTargetPeriodCandles,
+					period)
 				.OfType<SimpleIndicatorValue>()
 				.ToList();
 
 			var secondFrameCurrentRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 1);
-			var secondFrameOnePreviouseRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 2);
-			var secondFrameTwoPreviouseRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 3);
+			var secondFrameOnePreviousRSIValue = secondFrameRSIValues.ElementAtOrDefault(secondFrameRSIValues.Count - 2);
 
-			if (secondFrameCurrentRSIValue?.Value == null ||
-				secondFrameOnePreviouseRSIValue?.Value == null ||
-				secondFrameTwoPreviouseRSIValue?.Value == null)
+			if (secondFrameCurrentRSIValue?.Value == null || secondFrameOnePreviousRSIValue?.Value == null)
 			{
 				return conditionCheckingResult;
 			}
 
-			var secondFrameMaxRSIValue = secondFrameRSIValues
-				.Where(value => value.Value.HasValue)
-				.Select(value => value.Value.Value)
-				.ToList()
-				.GetMaximumValues()
-				.Max();
-
-			var lowRangeBroder = secondFrameMaxRSIValue * (isBullishTrendRising ? 0.8m : 0.67m);
-
-			//if RSI turning from minimum 
-			//if Prev RSI lower then lowRangeBroder
-			if (!(Math.Round(secondFrameCurrentRSIValue.Value.Value - secondFrameOnePreviouseRSIValue.Value.Value) >= 0 &&
-				  Math.Round(secondFrameTwoPreviouseRSIValue.Value.Value - secondFrameOnePreviouseRSIValue.Value.Value) >= 0 &&
-				  Math.Round(secondFrameOnePreviouseRSIValue.Value.Value - lowRangeBroder) < 0 &&
-				  Math.Round(secondFrameTwoPreviouseRSIValue.Value.Value - secondFrameMaxRSIValue) < 0))
+			if (secondFrameCurrentRSIValue.Value > (useExtendedBorders ? 50 : 40) || secondFrameCurrentRSIValue.Value < 25)
 			{
 				return conditionCheckingResult;
 			}
 
-			if (!isBullishTrendJustBeganRising)
+			if (secondFrameCurrentRSIValue.Value < secondFrameOnePreviousRSIValue.Value)
 			{
-				var secondFrameMACDValues = IndicatorComputingService.ComputeMACD(
-						secondFrameCandles,
-						secondFrameMACDSettings.EMAPeriod1,
-						secondFrameMACDSettings.EMAPeriod2,
-						secondFrameMACDSettings.SignalPeriod)
-					.OfType<MACDValue>()
-					.ToList();
-
-				var secondFrameCurentMACDValue = secondFrameMACDValues.ElementAtOrDefault(secondFrameMACDValues.Count - 1);
-				var secondFrameOnePreviouseMACDValue = secondFrameMACDValues.ElementAtOrDefault(secondFrameMACDValues.Count - 2);
-
-				//If all valuable parameters are not null
-				if (secondFrameCurentMACDValue?.MACD == null ||
-					secondFrameCurentMACDValue.Histogram == null ||
-					secondFrameOnePreviouseMACDValue?.Histogram == null)
-				{
-					return conditionCheckingResult;
-				}
-
-				//If Histogram is growning
-				if (Math.Round(secondFrameCurentMACDValue.Histogram.Value - secondFrameOnePreviouseMACDValue.Histogram.Value, 6) >= 0)
-				{
-					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
-				}
-				else if (secondFrameCurentMACDValue.MACD.Value > 0)
-				{
-					conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
-				}
-				else
-					conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
-
-				if (conditionCheckingResult.ResultType == ConditionCheckingResultType.Passed)
-				{
-					var thirdFrameMACDSettings = new MACDSettings
-					{
-						EMAPeriod1 = 12,
-						EMAPeriod2 = 26,
-						SignalPeriod = 9
-					};
-
-					var thirdFrameCandles = (await CandleLoadingService.LoadCandles(
-						currencyPair.Id,
-						settings.Period.GetLowerFramePeriod(),
-						thirdFrameMACDSettings.EMAPeriod2,
-						settings.Moment)).ToList();
-
-					var thirdFrameMACDValues = IndicatorComputingService.ComputeMACD(
-							thirdFrameCandles,
-							thirdFrameMACDSettings.EMAPeriod1,
-							thirdFrameMACDSettings.EMAPeriod2,
-							thirdFrameMACDSettings.SignalPeriod)
-						.OfType<MACDValue>()
-						.ToList();
-
-					var thirdFrameCurentMACDValue = thirdFrameMACDValues.ElementAtOrDefault(thirdFrameMACDValues.Count - 1);
-					var thirdFrameOnePreviouseMACDValue = thirdFrameMACDValues.ElementAtOrDefault(thirdFrameMACDValues.Count - 2);
-
-					//If Histogram is growning
-					if (!(Math.Round((thirdFrameCurentMACDValue?.Histogram - thirdFrameOnePreviouseMACDValue?.Histogram) ?? -1, 5) >= 0))
-					{
-						conditionCheckingResult.ResultType = ConditionCheckingResultType.Failed;
-					}
-				}
+				return conditionCheckingResult;
 			}
-			else
-				conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 
+			conditionCheckingResult.ResultType = ConditionCheckingResultType.Passed;
 			return conditionCheckingResult;
 		}
 	}

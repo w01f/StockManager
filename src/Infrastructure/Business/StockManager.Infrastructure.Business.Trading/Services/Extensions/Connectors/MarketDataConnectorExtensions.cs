@@ -11,8 +11,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 	{
 		public static async Task<decimal> GetNearestBidSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 20))
-				.Where(item => item.Type == OrderBookItemType.Bid)
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 20))
 				.ToList();
 
 			if (!orderBookBidItems.Any())
@@ -35,8 +34,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 
 		public static async Task<decimal> GetNearestAskSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 20))
-				.Where(item => item.Type == OrderBookItemType.Ask)
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 20))
 				.ToList();
 
 			if (!orderBookAskItems.Any())
@@ -59,8 +57,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 
 		public static async Task<decimal> GetTopMeaningfulBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
-				.Where(item => item.Type == OrderBookItemType.Bid)
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5))
 				.ToList();
 
 			if (!orderBookBidItems.Any())
@@ -80,8 +77,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 
 		public static async Task<decimal> GetTopBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
-				.Where(item => item.Type == OrderBookItemType.Bid)
+			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5))
 				.ToList();
 
 			if (!orderBookBidItems.Any())
@@ -96,8 +92,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 
 		public static async Task<decimal> GetBottomMeaningfulAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
-				.Where(item => item.Type == OrderBookItemType.Ask)
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5))
 				.ToList();
 
 			if (!orderBookAskItems.Any())
@@ -117,8 +112,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 
 		public static async Task<decimal> GetBottomAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, 5))
-				.Where(item => item.Type == OrderBookItemType.Ask)
+			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5))
 				.ToList();
 
 			if (!orderBookAskItems.Any())

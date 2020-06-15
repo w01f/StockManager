@@ -6,28 +6,29 @@ using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Socket.Services.HitBtc;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Test
 {
 	/// <summary>
-	/// Summary description for MarketTests
+	/// Summary description for StockTests
 	/// </summary>
 	[TestClass]
-	public class MarketTests
+	public class StockTests
 	{
-		private readonly MarketDataSocketConnector _marketDataSocketConnector = new MarketDataSocketConnector();
+		private readonly StockSocketConnector _stockSocketConnector = new StockSocketConnector(new ConfigurationService());
 
 		[TestMethod]
 		public async Task GetCurrenciesReturnsNonEmpty()
 		{
-			var currencies = await _marketDataSocketConnector.GetCurrencyPairs();
+			var currencies = await _stockSocketConnector.GetCurrencyPairs();
 			Assert.IsTrue(currencies.Any());
 		}
 
 		[TestMethod]
 		public async Task GetCurrencyReturnsNotNull()
 		{
-			var currencyPair = await _marketDataSocketConnector.GetCurrencyPair("ETHBTC");
+			var currencyPair = await _stockSocketConnector.GetCurrencyPair("ETHBTC");
 			Assert.IsNotNull(currencyPair);
 		}
 
@@ -36,7 +37,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Test
 		{
 			await Assert.ThrowsExceptionAsync<ConnectorException>(async () =>
 			{
-				await _marketDataSocketConnector.GetCurrencyPair("ETH");
+				await _stockSocketConnector.GetCurrencyPair("ETH");
 			});
 		}
 
@@ -44,7 +45,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Test
 		public async Task SubscribeOnCandlesReturnsNonEmpty()
 		{
 			var receivedCandles = new List<Candle>();
-			await _marketDataSocketConnector.SubscribeOnCandles("ETHBTC", CandlePeriod.Minute1, candles =>
+			await _stockSocketConnector.SubscribeOnCandles("ETHBTC", CandlePeriod.Minute1, candles =>
 			{
 				foreach (var candle in candles)
 				{
@@ -58,7 +59,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Test
 
 			await Task.Delay(61 * 1000);
 
-			Assert.AreEqual(11, receivedCandles.Count);
+			Assert.IsTrue(receivedCandles.Count >= 11);
 		}
 	}
 }

@@ -18,20 +18,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 	public class TradingPositionService : ITradingPositionService
 	{
 		private readonly IRepository<Order> _orderRepository;
-		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IStockRestConnector _stockRestConnector;
 		private readonly TradingWorkflowManager _tradingWorkflowManager;
 		private readonly ConfigurationService _configurationService;
 
 		public TradingPositionService(IRepository<Order> orderRepository,
-			IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataConnector tradingDataConnector,
+			IStockRestConnector stockRestConnector,
 			TradingWorkflowManager tradingWorkflowManager,
 			ConfigurationService configurationService)
 		{
 			_orderRepository = orderRepository;
-			_marketDataRestConnector = marketDataRestConnector ?? throw new ArgumentNullException(nameof(marketDataRestConnector));
-			_tradingDataConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
+			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
 			_tradingWorkflowManager = tradingWorkflowManager ?? throw new ArgumentNullException(nameof(orderRepository));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
@@ -42,16 +39,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			foreach (var currentPosition in storedPositions)
 			{
 				var currencyPair = currentPosition.OpenPositionOrder.CurrencyPair;
-				var activeOrders = await _tradingDataConnector.GetActiveOrders(currencyPair);
+				var activeOrders = await _stockRestConnector.GetActiveOrders(currencyPair);
 
 				var updatedOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.OpenPositionOrder.ClientId) ??
-												await _tradingDataConnector.GetOrderFromHistory(currentPosition.OpenPositionOrder.ClientId, currencyPair) ??
+												await _stockRestConnector.GetOrderFromHistory(currentPosition.OpenPositionOrder.ClientId, currencyPair) ??
 												currentPosition.OpenPositionOrder;
 				var updatedClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.ClosePositionOrder.ClientId) ??
-													await _tradingDataConnector.GetOrderFromHistory(currentPosition.ClosePositionOrder.ClientId, currencyPair) ??
+													await _stockRestConnector.GetOrderFromHistory(currentPosition.ClosePositionOrder.ClientId, currencyPair) ??
 													currentPosition.ClosePositionOrder;
 				var updatedStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.StopLossOrder.ClientId) ??
-											await _tradingDataConnector.GetOrderFromHistory(currentPosition.StopLossOrder.ClientId, currencyPair) ??
+											await _stockRestConnector.GetOrderFromHistory(currentPosition.StopLossOrder.ClientId, currencyPair) ??
 											currentPosition.StopLossOrder;
 
 				var ordersTuple = Tuple.Create(updatedOpenPositionOrder, updatedClosePositionOrder, updatedStopLossOrder);
@@ -68,7 +65,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			var orderPairModels = new List<TradingPosition>();
 			foreach (var orderPair in storedOrderPairs)
 			{
-				var currencyPair = await _marketDataRestConnector.GetCurrensyPair(orderPair.Item1.CurrencyPair);
+				var currencyPair = await _stockRestConnector.GetCurrencyPair(orderPair.Item1.CurrencyPair);
 
 				if (currencyPair == null)
 					throw new BusinessException("Currency pair not found")
@@ -85,7 +82,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 		public async Task<TradingPosition> OpenPosition(NewOrderPositionInfo positionInfo, Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
-			var currencyPair = await _marketDataRestConnector.GetCurrensyPair(positionInfo.CurrencyPairId);
+			var currencyPair = await _stockRestConnector.GetCurrencyPair(positionInfo.CurrencyPairId);
 
 			var position = TradingPositionHelper.CreatePosition(positionInfo, currencyPair, tradingSettings);
 
@@ -95,9 +92,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 		public async Task<TradingPosition> UpdatePosition(TradingPosition nextPosition, Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
-			var currencyPair = await _marketDataRestConnector.GetCurrensyPair(nextPosition.CurrencyPairId);
+			var currencyPair = await _stockRestConnector.GetCurrencyPair(nextPosition.CurrencyPairId);
 			var currentPosition = _orderRepository.GetAll()
-					.Where(entity => String.Equals(entity.CurrencyPair, nextPosition.CurrencyPairId, StringComparison.OrdinalIgnoreCase))
+					.Where(entity => entity.CurrencyPair.ToLower() == nextPosition.CurrencyPairId.ToLower())
 					.ToList()
 					.GroupOrders()
 					.Single()

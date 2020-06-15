@@ -1,10 +1,11 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
+﻿using System;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
 	public interface ITradingController
 	{
-		Task StartTrading(CancellationToken cancellationToken);
+		event EventHandler<UnhandledExceptionEventArgs> Exception; 
+
+		void StartTrading();
 	}
 }

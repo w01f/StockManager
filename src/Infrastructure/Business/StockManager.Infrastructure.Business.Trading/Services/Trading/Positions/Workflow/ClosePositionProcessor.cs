@@ -32,7 +32,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 		public bool IsAllowToProcess(TradingPosition currentState, TradingPosition nextState)
 		{
-			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Expired) &&
+			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled && currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending && currentState.StopLossOrder.OrderStateType == OrderStateType.Pending) ||
+				(currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Expired) &&
 					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled || currentState.ClosePositionOrder.OrderStateType == OrderStateType.Cancelled ||
 					currentState.StopLossOrder.OrderStateType == OrderStateType.Filled || currentState.StopLossOrder.OrderStateType == OrderStateType.Cancelled);
 		}
@@ -81,13 +82,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_orderHistoryRepository.Insert(currentState.ClosePositionOrder.ToHistory());
 			_orderHistoryRepository.Insert(currentState.StopLossOrder.ToHistory());
 
-			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(
-				currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled ?
+			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled ?
 					TradingEventType.PositionClosedSuccessfully :
 					TradingEventType.PositionClosedDueStopLoss,
 				currentState.CurrencyPairId));
 
-			return null;
+			return Task.FromResult<TradingPosition>(null);
 		}
 	}
 }

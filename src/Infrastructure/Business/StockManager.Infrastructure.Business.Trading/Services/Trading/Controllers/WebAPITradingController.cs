@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
 using StockManager.Infrastructure.Business.Trading.Helpers;
@@ -25,8 +26,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 {
 	public class WebAPITradingController : ITradingController
 	{
-		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IStockRestConnector _stockRestConnector;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
 		private readonly IMarketPendingPositionAnalysisService _marketPendingPositionAnalysisService;
 		private readonly IMarketOpenPositionAnalysisService _marketOpenPositionAnalysisService;
@@ -35,8 +35,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 		private readonly TradingEventsObserver _tradingEventsObserver;
 		private readonly ILoggingService _loggingService;
 
-		public WebAPITradingController(IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataConnector tradingDataConnector,
+		public WebAPITradingController(IStockRestConnector stockRestConnector,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
 			IMarketPendingPositionAnalysisService marketPendingPositionAnalysisService,
 			IMarketOpenPositionAnalysisService marketOpenPositionAnalysisService,
@@ -45,8 +44,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			TradingEventsObserver tradingEventsObserver,
 			ILoggingService loggingService)
 		{
-			_marketDataRestConnector = marketDataRestConnector;
-			_tradingDataConnector = tradingDataConnector;
+			_stockRestConnector = stockRestConnector;
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService;
 			_marketPendingPositionAnalysisService = marketPendingPositionAnalysisService;
 			_marketOpenPositionAnalysisService = marketOpenPositionAnalysisService;
@@ -56,7 +54,49 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			_loggingService = loggingService;
 		}
 
-		public async Task StartTrading(CancellationToken cancellationToken)
+		public event EventHandler<UnhandledExceptionEventArgs> Exception;
+
+		public void StartTrading()
+		{
+			var now = DateTime.Now;
+			var dueDateTimeSpan = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 15).AddMinutes(1) - now;
+			var periodTimeSpan = TimeSpan.FromMinutes(1);
+
+			var cancelTokenSource = new CancellationTokenSource();
+
+			async void TimerCallback(object e)
+			{
+				if (cancelTokenSource.IsCancellationRequested) return;
+
+				try
+				{
+					Console.WriteLine("Iteration started at {0}", DateTime.Now);
+
+					var watch = System.Diagnostics.Stopwatch.StartNew();
+
+					var tradingSettings = _configurationService.GetTradingSettings();
+					tradingSettings.Period = CandlePeriod.Minute5;
+					tradingSettings.Moment = DateTime.UtcNow;
+					tradingSettings.BaseOrderSide = OrderSide.Buy;
+					_configurationService.UpdateTradingSettings(tradingSettings);
+
+					await RunTradingIteration();
+
+					watch.Stop();
+					Console.WriteLine("Iteration completed successfully for {0} s", watch.ElapsedMilliseconds / 1000);
+				}
+				catch
+				{
+					cancelTokenSource.Cancel();
+					throw;
+				}
+			}
+
+			var tradingTimer = new Timer(TimerCallback, null, dueDateTimeSpan, periodTimeSpan);
+			GC.KeepAlive(tradingTimer);
+		}
+
+		private async Task RunTradingIteration()
 		{
 			try
 			{
@@ -105,7 +145,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 				{
 					var tradingSettings = _configurationService.GetTradingSettings();
 
-					var allCurrencyPairs = await _marketDataRestConnector.GetCurrensyPairs();
+					var allCurrencyPairs = await _stockRestConnector.GetCurrencyPairs();
 
 					var baseCurrencyPairs = allCurrencyPairs
 						.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId =>
@@ -113,7 +153,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 										!tradingPositions.Any(orderPair => String.Equals(orderPair.OpenPositionOrder.CurrencyPair.BaseCurrencyId, item.BaseCurrencyId))
 						);
 
-					var allTickers = await _marketDataRestConnector.GetTickers();
+					var allTickers = await _stockRestConnector.GetTickers();
 					var tradingTickers = allTickers
 						.Where(tickerItem =>
 							baseCurrencyPairs.Any(currencyPairItem => String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id)))
@@ -153,7 +193,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					foreach (var currencyPair in baseCurrencyPairs.Where(currencyPairItem => tradingTickers.Any(tickerItem =>
 						String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id, StringComparison.OrdinalIgnoreCase))).ToList())
 					{
-						var tradingBalance = await _tradingDataConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
+						var tradingBalance = await _stockRestConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
 						if (tradingBalance?.Available <= 0)
 							continue;
 
@@ -186,7 +226,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					Details = e.Details,
 					StackTrace = e.StackTrace
 				});
-				throw;
+				OnException(new UnhandledExceptionEventArgs(e, false));
 			}
 			catch (ParseResponseException e)
 			{
@@ -197,7 +237,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					Details = e.SourceData,
 					StackTrace = e.StackTrace
 				});
-				throw;
+				OnException(new UnhandledExceptionEventArgs(e, false));
 			}
 			catch (Exception e)
 			{
@@ -207,8 +247,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					Message = e.Message,
 					StackTrace = e.StackTrace
 				});
-				throw;
+				OnException(new UnhandledExceptionEventArgs(e, false));
 			}
+		}
+
+		private void OnException(UnhandledExceptionEventArgs e)
+		{
+			Exception?.Invoke(this, e);
 		}
 	}
 }

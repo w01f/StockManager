@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Entities.Trading;
+using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.Enums;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
@@ -16,153 +17,227 @@ using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Positions.AsyncWorker;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Market;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
+using StockManager.Infrastructure.Utilities.Logging.Models.Errors;
+using StockManager.Infrastructure.Utilities.Logging.Services;
 
 namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controllers
 {
-	class SocketTradingController : ITradingController
+	public class SocketTradingController : ITradingController
 	{
 		private readonly IRepository<Order> _orderRepository;
-		private readonly IMarketDataSocketConnector _marketDataSocketConnector;
-		private readonly IMarketDataRestConnector _marketDataRestConnector;
-		private readonly ITradingDataConnector _tradingDataConnector;
+		private readonly IStockSocketConnector _stockSocketConnector;
+		private readonly IStockRestConnector _stockRestConnector;
 		private readonly CandleLoadingService _candleLoadingService;
-		private readonly OrderBookLoadingService _orderBookLoadingService;
-		private readonly TradingReportsService _tradingReportsService;
 		private readonly IMarketNewPositionAnalysisService _marketNewPositionAnalysisService;
-		private readonly ITradingPositionWorkerFactory _tradingPositionWorkerFactory;
+		private readonly TradingPositionWorkerFactory _tradingPositionWorkerFactory;
 		private readonly ITradingPositionService _tradingPositionService;
 		private readonly ConfigurationService _configurationService;
 		private readonly TradingEventsObserver _tradingEventsObserver;
+		private readonly ILoggingService _loggingService;
 
-		private IList<TradingPositionWorker> _activePositionWorkers;
+		private ConcurrentDictionary<string, TradingPositionWorker> _activePositionWorkers;
 
 		public SocketTradingController(
 			IRepository<Order> orderRepository,
-			IMarketDataSocketConnector marketDataSocketConnector,
-			IMarketDataRestConnector marketDataRestConnector,
-			ITradingDataConnector tradingDataConnector,
+			IStockSocketConnector stockSocketConnector,
+			IStockRestConnector stockRestConnector,
 			CandleLoadingService candleLoadingService,
-			OrderBookLoadingService orderBookLoadingService,
-			TradingReportsService tradingReportsService,
 			IMarketNewPositionAnalysisService marketNewPositionAnalysisService,
-			ITradingPositionWorkerFactory tradingPositionWorkerFactory,
+			TradingPositionWorkerFactory tradingPositionWorkerFactory,
 			ITradingPositionService tradingPositionService,
 			ConfigurationService configurationService,
-			TradingEventsObserver tradingEventsObserver)
+			TradingEventsObserver tradingEventsObserver,
+			ILoggingService loggingService)
 		{
 			_orderRepository = orderRepository ?? throw new ArgumentNullException(nameof(orderRepository));
-			_marketDataSocketConnector = marketDataSocketConnector ?? throw new ArgumentNullException(nameof(marketDataSocketConnector));
-			_marketDataRestConnector = marketDataRestConnector ?? throw new ArgumentNullException(nameof(marketDataRestConnector));
-			_tradingDataConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
+			_stockSocketConnector = stockSocketConnector ?? throw new ArgumentNullException(nameof(stockSocketConnector));
+			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
 			_candleLoadingService = candleLoadingService ?? throw new ArgumentNullException(nameof(candleLoadingService));
-			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
-			_tradingReportsService = tradingReportsService ?? throw new ArgumentNullException(nameof(tradingReportsService));
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService ?? throw new ArgumentNullException(nameof(marketNewPositionAnalysisService));
 			_tradingPositionWorkerFactory = tradingPositionWorkerFactory ?? throw new ArgumentNullException(nameof(tradingPositionWorkerFactory));
 			_tradingPositionService = tradingPositionService ?? throw new ArgumentNullException(nameof(tradingPositionService));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 			_tradingEventsObserver = tradingEventsObserver ?? throw new ArgumentNullException(nameof(tradingEventsObserver));
+			_loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
 		}
 
-		public async Task StartTrading(CancellationToken cancellationToken)
+		public event EventHandler<UnhandledExceptionEventArgs> Exception;
+
+		public void StartTrading()
 		{
-			await SubscribeOnTradingEvents();
+			var cancelTokenSource = new CancellationTokenSource();
+			try
+			{
+				var tradingSettings = _configurationService.GetTradingSettings();
+				tradingSettings.Period = CandlePeriod.Minute5;
+				tradingSettings.Moment = null;
+				tradingSettings.BaseOrderSide = OrderSide.Buy;
+				_configurationService.UpdateTradingSettings(tradingSettings);
+
+				_stockSocketConnector.Connect().Wait(cancelTokenSource.Token);
+				_stockSocketConnector.SubscribeErrors(exception =>
+				{
+					OnException(new UnhandledExceptionEventArgs(exception, false));
+					cancelTokenSource.Cancel();
+				});
+
+				Task.WaitAll(StartTradingInner(cancelTokenSource.Token));
+			}
+			catch (BusinessWarning e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					Details = e.Details,
+					StackTrace = e.StackTrace
+				});
+			}
+			catch (BusinessException e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					Details = e.Details,
+					StackTrace = e.StackTrace
+				});
+				OnException(new UnhandledExceptionEventArgs(e, false));
+			}
+			catch (ParseResponseException e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					Details = e.SourceData,
+					StackTrace = e.StackTrace
+				});
+				OnException(new UnhandledExceptionEventArgs(e, false));
+			}
+			catch (Exception e)
+			{
+				_loggingService.LogAction(new ErrorAction
+				{
+					ExceptionType = e.GetType().ToString(),
+					Message = e.Message,
+					StackTrace = e.StackTrace
+				});
+				OnException(new UnhandledExceptionEventArgs(e, false));
+			}
+			finally
+			{
+				cancelTokenSource.Cancel();
+			}
+		}
+
+		private async Task StartTradingInner(CancellationToken cancellationToken)
+		{
+			await _stockSocketConnector.Connect();
 
 			await _tradingPositionService.SyncExistingPositionsWithStock(positionChangedEventArgs => _tradingEventsObserver.RaisePositionChanged(positionChangedEventArgs));
 			await LoadExistingPositions();
 
-			while (!cancellationToken.CanBeCanceled)
-				await Task.Delay(1000, cancellationToken);
-			//TODO Check if errors occured to exit
+			await CheckOutNewTickersForRequiredVolume();
+
+			WaitHandle.WaitAny(new[] { cancellationToken.WaitHandle });
+
+			await _stockSocketConnector.Disconnect();
 		}
 
-		private async Task SubscribeOnTradingEvents()
+		private async Task CheckOutNewTickersForRequiredVolume()
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
-			var allCurrencyPairs = await _marketDataRestConnector.GetCurrensyPairs();
-			var tradingCurrencyPairs = allCurrencyPairs.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId =>
-					String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)))
+			var allCurrencyPairs = await _stockRestConnector.GetCurrencyPairs();
+
+			var baseCurrencyPairs = allCurrencyPairs.Where(item => !_activePositionWorkers.ContainsKey(item.Id) &&
+				tradingSettings.QuoteCurrencies.Any(currencyId => String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)));
+
+			var allTickers = await _stockRestConnector.GetTickers();
+			var tradingTickers = allTickers
+				.Where(tickerItem =>
+					baseCurrencyPairs.Any(currencyPairItem => String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id)))
+				.Where(tickerItem =>
+				{
+					var tickerCurrencyPair = baseCurrencyPairs.First(currencyPairItem =>
+						String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id));
+					decimal volumeToCompare;
+					if (String.Equals(tickerCurrencyPair.QuoteCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase))
+						volumeToCompare = tickerItem.VolumeInQuoteCurrency;
+					else
+					{
+						var btcConvertFactor = 0m;
+						var requestCurrencyPair = allCurrencyPairs.FirstOrDefault(item =>
+							String.Equals(tickerCurrencyPair.QuoteCurrencyId, item.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase) &&
+							String.Equals(item.BaseCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase));
+						if (requestCurrencyPair != null)
+							btcConvertFactor = allTickers.First(item =>
+								String.Equals(item.CurrencyPairId, requestCurrencyPair.Id, StringComparison.OrdinalIgnoreCase)).LastPrice;
+						else
+						{
+							requestCurrencyPair = allCurrencyPairs.FirstOrDefault(item =>
+								String.Equals(tickerCurrencyPair.QuoteCurrencyId, item.BaseCurrencyId, StringComparison.OrdinalIgnoreCase) &&
+								String.Equals(item.QuoteCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase));
+							if (requestCurrencyPair != null)
+								btcConvertFactor = 1 / allTickers.First(item =>
+													   String.Equals(item.CurrencyPairId, requestCurrencyPair.Id,
+														   StringComparison.OrdinalIgnoreCase)).LastPrice;
+						}
+
+						volumeToCompare = btcConvertFactor > 0 ? tickerItem.VolumeInQuoteCurrency / btcConvertFactor : 0;
+					}
+					return volumeToCompare > tradingSettings.MinCurrencyPairTradingVolumeInBTC;
+				})
 				.ToList();
+
+			var tradingCurrencyPairs = baseCurrencyPairs.Where(currencyPairItem => tradingTickers.Any(tickerItem =>
+				String.Equals(tickerItem.CurrencyPairId, currencyPairItem.Id, StringComparison.OrdinalIgnoreCase))).ToList();
+
+			var periodsForAnalysis = new[]
+			{
+				tradingSettings.Period.GetLowerFramePeriod(),
+				tradingSettings.Period,
+				tradingSettings.Period.GetHigherFramePeriod()
+			};
 
 			foreach (var currencyPair in tradingCurrencyPairs)
 			{
-				var periodsForAnalysis = new[]
+				foreach (var candlePeriod in periodsForAnalysis)
 				{
-					tradingSettings.Period.GetLowerFramePeriod(),
-					tradingSettings.Period,
-					tradingSettings.Period.GetHigherFramePeriod()
-				};
-				_candleLoadingService.InitSubscription(currencyPair.Id, periodsForAnalysis);
+					var candles = await _stockRestConnector.GetCandles(currencyPair.Id, candlePeriod, 30);
+					_candleLoadingService.UpdateCandles(currencyPair.Id, candlePeriod, candles);
+				}
 
-				await _marketDataSocketConnector.SubscribeOnTickers(currencyPair.Id, async ticker =>
+				await _candleLoadingService.InitSubscription(currencyPair.Id, periodsForAnalysis);
+
+				_candleLoadingService.CandlesUpdated += (o, e) =>
 				{
 					if (_activePositionWorkers == null)
 						return;
 
-					if (_activePositionWorkers.Any(activePosition => activePosition.Position.CurrencyPairId == ticker.CurrencyPairId))
+					if (_activePositionWorkers.ContainsKey(e.CurrencyPairId))
 						return;
 
-					await CheckOutForNewPosition(ticker);
-				});
+					if (e.Period != tradingSettings.Period)
+						return;
 
-				_orderBookLoadingService.InitSubscription(currencyPair.Id);
+					CheckOutForNewPosition(currencyPair).Wait();
+				};
 			}
-
-			await _tradingReportsService.InitSubscription(tradingCurrencyPairs);
 		}
 
-		private async Task CheckOutForNewPosition(Ticker ticker)
+		private async Task CheckOutForNewPosition(CurrencyPair tickerCurrencyPair)
 		{
-			var tradingSettings = _configurationService.GetTradingSettings();
-			var allCurrencyPairs = await _marketDataRestConnector.GetCurrensyPairs();
-			var tickerCurrencyPair = allCurrencyPairs.Single(currencyPair => currencyPair.Id == ticker.CurrencyPairId);
-
-			decimal volumeToCompare;
-			if (String.Equals(tickerCurrencyPair.QuoteCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase))
-				volumeToCompare = ticker.VolumeInQuoteCurrency;
-			else
+			var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tickerCurrencyPair);
+			if (marketInfo.PositionType != NewMarketPositionType.Wait && !_activePositionWorkers.ContainsKey(tickerCurrencyPair.Id))
 			{
-				var btcConvertFactor = 0m;
-				var requestCurrencyPair = allCurrencyPairs.FirstOrDefault(item =>
-					String.Equals(tickerCurrencyPair.QuoteCurrencyId, item.QuoteCurrencyId, StringComparison.OrdinalIgnoreCase) &&
-					String.Equals(item.BaseCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase));
-				if (requestCurrencyPair != null)
-				{
-					var allTickers = await _marketDataRestConnector.GetTickers();
-					btcConvertFactor = allTickers.First(item =>
-						String.Equals(item.CurrencyPairId, requestCurrencyPair.Id, StringComparison.OrdinalIgnoreCase)).LastPrice;
-				}
-				else
-				{
-					requestCurrencyPair = allCurrencyPairs.FirstOrDefault(item =>
-						String.Equals(tickerCurrencyPair.QuoteCurrencyId, item.BaseCurrencyId, StringComparison.OrdinalIgnoreCase) &&
-						String.Equals(item.QuoteCurrencyId, Constants.BTC, StringComparison.OrdinalIgnoreCase));
-					if (requestCurrencyPair != null)
-					{
-						var allTickers = await _marketDataRestConnector.GetTickers();
-						btcConvertFactor = 1 / allTickers.First(item =>
-												String.Equals(item.CurrencyPairId, requestCurrencyPair.Id,
-													StringComparison.OrdinalIgnoreCase)).LastPrice;
-					}
-				}
-
-				volumeToCompare = btcConvertFactor > 0 ? ticker.VolumeInQuoteCurrency / btcConvertFactor : 0;
-			}
-
-			if (volumeToCompare > tradingSettings.MinCurrencyPairTradingVolumeInBTC)
-			{
-				var tradingBalance = await _tradingDataConnector.GetTradingBalance(tickerCurrencyPair.QuoteCurrencyId);
-				if (tradingBalance?.Available > 0)
-				{
-					var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tickerCurrencyPair);
-					if (marketInfo.PositionType != NewMarketPositionType.Wait)
-					{
-						var worker = await _tradingPositionWorkerFactory.CreateWorkerWithNewPosition((NewOrderPositionInfo)marketInfo, OnPositionChanged);
-						_activePositionWorkers.Add(worker);
-					}
-				}
+				var worker = _tradingPositionWorkerFactory.CreateWorkerWithNewPosition(OnPositionChanged);
+				var success = _activePositionWorkers.TryAdd(tickerCurrencyPair.Id, worker);
+				if (success)
+					await worker.CreateNewPosition((NewOrderPositionInfo)marketInfo);
 			}
 		}
 
@@ -171,12 +246,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			if (_activePositionWorkers?.Any() == true)
 				throw new BusinessException("Positions already loaded");
 
-			_activePositionWorkers = new List<TradingPositionWorker>();
+			_activePositionWorkers = new ConcurrentDictionary<string, TradingPositionWorker>();
 
 			var storedOrderPairs = _orderRepository.GetAll().ToList().GroupOrders();
 			foreach (var storedOrderTuple in storedOrderPairs)
 			{
-				var currencyPair = await _marketDataRestConnector.GetCurrensyPair(storedOrderTuple.Item1.CurrencyPair);
+				var currencyPair = await _stockRestConnector.GetCurrencyPair(storedOrderTuple.Item1.CurrencyPair);
 
 				if (currencyPair == null)
 					throw new BusinessException("Currency pair not found")
@@ -184,8 +259,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						Details = $"Currency pair id: {storedOrderTuple.Item1.CurrencyPair}"
 					};
 
-				var worker = _tradingPositionWorkerFactory.CreateWorkerWithExistingPosition(storedOrderTuple.ToTradingPosition(currencyPair), OnPositionChanged);
-				_activePositionWorkers.Add(worker);
+				var worker = await _tradingPositionWorkerFactory.CreateWorkerWithExistingPosition(storedOrderTuple.ToTradingPosition(currencyPair), OnPositionChanged);
+				_activePositionWorkers.TryAdd(currencyPair.Id, worker);
 			}
 		}
 
@@ -195,11 +270,16 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			{
 				case TradingEventType.PositionClosedSuccessfully:
 				case TradingEventType.PositionClosedDueStopLoss:
-					_activePositionWorkers.Remove(worker);
+					_activePositionWorkers.TryRemove(worker.Position.CurrencyPairId, out _);
 					break;
 			}
 
 			_tradingEventsObserver.RaisePositionChanged(eventArgs.EventType, eventArgs.Details);
+		}
+
+		private void OnException(UnhandledExceptionEventArgs e)
+		{
+			Exception?.Invoke(this, e);
 		}
 	}
 }

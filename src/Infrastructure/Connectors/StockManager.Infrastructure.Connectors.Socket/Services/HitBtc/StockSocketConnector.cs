@@ -4,22 +4,39 @@ using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Enums;
+using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Socket.Connection;
 using StockManager.Infrastructure.Connectors.Socket.Models.NotificationParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.RequestParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.Market;
+using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 {
-	public class MarketDataSocketConnector : IMarketDataSocketConnector
+	public class StockSocketConnector : IStockSocketConnector
 	{
-		private readonly HitBtcConnection _connection;
+		private HitBtcConnection _connection;
 
-		public MarketDataSocketConnector()
+		public StockSocketConnector(ConfigurationService configurationService)
 		{
-			_connection = new HitBtcConnection();
+			_connection = new HitBtcConnection(configurationService.GetExchangeConnectionSettings());
+		}
+
+		public async Task Connect()
+		{
+			if (_connection == null)
+				return;
+			await _connection.Connect();
+		}
+
+		public async Task Disconnect()
+		{
+			if (_connection == null)
+				return;
+			await _connection.Disconnect();
+			_connection = null;
 		}
 
 		public async Task<IList<Infrastructure.Common.Models.Market.CurrencyPair>> GetCurrencyPairs()
@@ -57,11 +74,9 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			var request = new SocketSubscriptionRequest<CandleRequestParameters>
 			{
 				RequestMethodName = "subscribeCandles",
-				NotificationMethodNames =
-				{
-					"snapshotCandles",
-					"updateCandles"
-				},
+				SnapshotMethodName = "snapshotCandles",
+				NotificationMethodName = "updateCandles",
+				UnsubscribeMethodName = "unsubscribeCandles",
 				RequestParameters = new CandleRequestParameters
 				{
 					CurrencyPairId = currencyPairId,
@@ -89,11 +104,10 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			var request = new SocketSubscriptionRequest<TickerRequestParameters>
 			{
 				RequestMethodName = "subscribeTicker",
-				NotificationMethodNames =
-				{
-					"ticker",
-				},
-				RequestParameters = new TickerRequestParameters()
+				SnapshotMethodName = null,
+				NotificationMethodName = "ticker",
+				UnsubscribeMethodName = "unsubscribeTicker",
+				RequestParameters = new TickerRequestParameters
 				{
 					CurrencyPairId = currencyPairId,
 				}
@@ -110,12 +124,10 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			var request = new SocketSubscriptionRequest<OrderBookRequestParameters>
 			{
 				RequestMethodName = "subscribeOrderbook",
-				NotificationMethodNames =
-				{
-					"snapshotOrderbook",
-					"updateOrderbook"
-				},
-				RequestParameters = new OrderBookRequestParameters()
+				SnapshotMethodName = "snapshotOrderbook",
+				NotificationMethodName = "updateOrderbook",
+				UnsubscribeMethodName = "unsubscribeOrderbook",
+				RequestParameters = new OrderBookRequestParameters
 				{
 					CurrencyPairId = currencyPairId,
 				}
@@ -135,6 +147,32 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 
 				callback(mergedItems);
 			});
+		}
+
+		public async Task SubscribeOrders(IList<Infrastructure.Common.Models.Market.CurrencyPair> targetCurrencyPairs, Action<Order> callback)
+		{
+			var request = new SocketSubscriptionRequest<EmptyRequestParameters>
+			{
+				RequestMethodName = "subscribeReports",
+				SnapshotMethodName = null,
+				NotificationMethodName = "report",
+				UnsubscribeMethodName = null,
+				RequestParameters = new EmptyRequestParameters()
+			};
+
+			await _connection.Subscribe<Models.Trading.Order>(request, order =>
+			{
+				var currencyPair = targetCurrencyPairs.FirstOrDefault(item => String.Equals(item.Id, order.CurrencyPairId, StringComparison.OrdinalIgnoreCase));
+
+				var result = Models.Trading.OrderMap.ToOuterModel(order, currencyPair);
+
+				callback(result);
+			});
+		}
+
+		public void SubscribeErrors(Action<Exception> callback)
+		{
+			_connection.Error += (o, e) => callback((Exception)e.ExceptionObject);
 		}
 	}
 }
