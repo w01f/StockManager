@@ -9,6 +9,8 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 		public static string EncodeSocketRequest(this SocketRequest socketRequest)
 		{
 			var serializerSettings = new RestSerializeSettings();
+			serializerSettings.TypeNameHandling = TypeNameHandling.None;
+			serializerSettings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
 			return JsonConvert.SerializeObject(socketRequest, serializerSettings);
 		}
 

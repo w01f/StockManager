@@ -72,7 +72,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				nextState.OpenPositionOrder.OrderStateType = OrderStateType.Filled;
 			}
 
-			currentState.StopLossOrder.OrderStateType = OrderStateType.Suspended;
+			nextState.StopLossOrder.OrderStateType = OrderStateType.Suspended;
 			nextState.StopLossOrder = await _ordersService.CreateSellMarketOrder(nextState.StopLossOrder);
 
 			var openOrderEntity = _orderRepository.Get(nextState.OpenPositionOrder.Id);
@@ -93,7 +93,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_orderRepository.Update(nextState.StopLossOrder.ToEntity(stopLossOrderEntity));
 			_loggingService.LogAction(nextState.StopLossOrder.ToLogAction(OrderActionType.Create));
 
-			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.PositionOpened, nextState.CurrencyPairId));
+			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.PositionOpened, nextState));
 
 			return nextState;
 		}

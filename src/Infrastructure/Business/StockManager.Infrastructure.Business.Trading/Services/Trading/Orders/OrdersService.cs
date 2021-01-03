@@ -7,6 +7,7 @@ using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Services.Extensions.Connectors;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
+using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
@@ -16,14 +17,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 	{
 		private readonly OrderBookLoadingService _orderBookLoadingService;
 		private readonly IStockRestConnector _stockRestConnector;
+		private readonly IStockSocketConnector _stockSocketConnector;
 		private readonly ConfigurationService _configurationService;
 
 		public OrdersService(OrderBookLoadingService orderBookLoadingService,
-			IStockRestConnector tradingDataConnector,
+			IStockRestConnector stockRestConnector,
+			IStockSocketConnector stockSocketConnector,
 			ConfigurationService configurationService)
 		{
 			_orderBookLoadingService = orderBookLoadingService ?? throw new ArgumentNullException(nameof(orderBookLoadingService));
-			_stockRestConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
+			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
+			_stockSocketConnector = stockSocketConnector ?? throw new ArgumentNullException(nameof(stockSocketConnector));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
@@ -54,7 +58,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				{
 					if (needToResetOrder)
 					{
-						order.ClientId  = Guid.NewGuid();
+						order.ClientId = Guid.NewGuid();
 						order.OrderType = OrderType.Limit;
 						order.OrderStateType = OrderStateType.New;
 						order.StopPrice = null;
@@ -72,6 +76,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 				{
 					serverSideOrder = await _stockRestConnector.CreateOrder(order, true);
 				}
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Duplicate clientOrderId") ?? false)
+						order.ClientId = Guid.NewGuid();
+					serverSideOrder = null;
+					await Task.Delay(3000);
+				}
 				catch (Exception)
 				{
 					serverSideOrder = null;
@@ -88,9 +99,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 
 		public async Task<Order> CreateSellLimitOrder(Order order)
 		{
-			var baseTradingBalance = await _stockRestConnector.GetTradingBalance(order.CurrencyPair.BaseCurrencyId);
+			var currencyPair = order.CurrencyPair;
+			var baseTradingBalance = await _stockRestConnector.GetTradingBalance(currencyPair.BaseCurrencyId);
 			if (baseTradingBalance?.Available <= 0)
-				throw new BusinessException($"Trading balance is empty or not available: {order.CurrencyPair.Id}");
+				throw new BusinessException($"Trading balance is empty or not available: {currencyPair.Id}");
 
 			var needToStopPrice = !(order.OrderStateType == OrderStateType.New || order.OrderStateType == OrderStateType.PartiallyFilled);
 
@@ -106,23 +118,33 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						order.StopPrice = null;
 					}
 
-					var nearestAskSupportPrice = await _orderBookLoadingService.GetNearestAskSupportPrice(order.CurrencyPair);
-					order.Price = nearestAskSupportPrice - order.CurrencyPair.TickSize;
+					var nearestAskSupportPrice = await _orderBookLoadingService.GetNearestAskSupportPrice(currencyPair);
+					order.Price = nearestAskSupportPrice - currencyPair.TickSize;
 				}
 
 				order.CalculateSellOrderQuantity(baseTradingBalance);
 				if (order.Quantity == 0)
-					throw new BusinessException($"Trading balance is not enough to open order: {order.CurrencyPair.Id}");
+					break;
 
 				try
 				{
 					serverSideOrder = await _stockRestConnector.CreateOrder(order, true);
 				}
-				catch
+				catch (ConnectorException e)
+				{
+					if (e.Message?.Contains("Duplicate clientOrderId") ?? false)
+						order.ClientId = Guid.NewGuid();
+					serverSideOrder = null;
+					await Task.Delay(3000);
+				}
+				catch (Exception)
 				{
 					serverSideOrder = null;
 				}
 			} while (serverSideOrder == null || serverSideOrder.OrderStateType == OrderStateType.Expired);
+
+			if (serverSideOrder == null || serverSideOrder.OrderStateType == OrderStateType.Cancelled)
+				throw new BusinessException($"Error while closing position occured: {currencyPair.Id}");
 
 			order.SyncWithAnotherOrder(serverSideOrder);
 
@@ -144,6 +166,40 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 			order.SyncWithAnotherOrder(serverSideOrder);
 
 			return order;
+		}
+
+		public async Task RequestReplaceOrder(Order order, Guid newClientId, Action replacementErrorCallback)
+		{
+			switch (order.OrderSide)
+			{
+				case OrderSide.Buy:
+					{
+						var tradingSettings = _configurationService.GetTradingSettings();
+						var currencyPair = order.CurrencyPair;
+						var quoteTradingBalance = await _stockRestConnector.GetTradingBalance(currencyPair.QuoteCurrencyId);
+						if (quoteTradingBalance?.Available <= 0)
+							throw new BusinessException($"Trading balance is empty or not available: {currencyPair.Id}");
+
+						order.CalculateBuyOrderQuantity(quoteTradingBalance, tradingSettings);
+					}
+					break;
+				case OrderSide.Sell:
+					{
+						var currencyPair = order.CurrencyPair;
+						var baseTradingBalance = await _stockRestConnector.GetTradingBalance(currencyPair.BaseCurrencyId);
+						if (baseTradingBalance?.Available <= 0)
+							throw new BusinessException($"Trading balance is empty or not available: {currencyPair.Id}");
+
+						order.CalculateSellOrderQuantity(baseTradingBalance);
+					}
+					break;
+			}
+			await _stockSocketConnector.RequestReplaceOrder(order, newClientId, replacementErrorCallback);
+		}
+
+		public async Task RequestCancelOrder(Order order)
+		{
+			await _stockSocketConnector.RequestCancelOrder(order);
 		}
 
 		public async Task<Order> CancelOrder(Order order)

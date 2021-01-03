@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,12 +11,10 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public class OrderBookLoadingService
 	{
-		private static readonly object OrderBookAccessLocker = new object();
-
 		private readonly IStockRestConnector _stockRestConnector;
 		private readonly IStockSocketConnector _stockSocketConnector;
 
-		private readonly IDictionary<string, List<OrderBookItem>> _orderBooks = new Dictionary<string, List<OrderBookItem>>();
+		private readonly ConcurrentDictionary<string, List<OrderBookItem>> _orderBooks = new ConcurrentDictionary<string, List<OrderBookItem>>();
 
 		public event EventHandler<OrderBookUpdatedEventArgs> OrderBookUpdated;
 
@@ -31,27 +30,25 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 			if (_orderBooks.ContainsKey(currencyPairId))
 				return;
 
-			_orderBooks.Add(currencyPairId, new List<OrderBookItem>());
+			if (!_orderBooks.TryAdd(currencyPairId, new List<OrderBookItem>()))
+				return;
 
 			await _stockSocketConnector.SubscribeOnOrderBook(currencyPairId, newOrderBookItems =>
 			{
-				lock (OrderBookAccessLocker)
-				{
-					var orderBookItems = _orderBooks[currencyPairId].ToList();
-					orderBookItems.AddRange(newOrderBookItems);
+				var orderBookItems = _orderBooks[currencyPairId].ToList();
+				orderBookItems.AddRange(newOrderBookItems);
 
-					_orderBooks[currencyPairId].Clear();
-					_orderBooks[currencyPairId].AddRange(orderBookItems
-						.Where(item => item.Type == OrderBookItemType.Ask && item.Size > 0)
-						.OrderBy(item => item.Price)
-						.Take(20));
-					_orderBooks[currencyPairId].AddRange(orderBookItems
-						.Where(item => item.Type == OrderBookItemType.Bid && item.Size > 0)
-						.OrderByDescending(item => item.Price)
-						.Take(20));
+				_orderBooks[currencyPairId].Clear();
+				_orderBooks[currencyPairId].AddRange(orderBookItems
+					.Where(item => item.Type == OrderBookItemType.Ask && item.Size > 0)
+					.OrderBy(item => item.Price)
+					.Take(20));
+				_orderBooks[currencyPairId].AddRange(orderBookItems
+					.Where(item => item.Type == OrderBookItemType.Bid && item.Size > 0)
+					.OrderByDescending(item => item.Price)
+					.Take(20));
 
-					OnOrderBookUpdated(currencyPairId);
-				}
+				OnOrderBookUpdated(currencyPairId);
 			});
 		}
 

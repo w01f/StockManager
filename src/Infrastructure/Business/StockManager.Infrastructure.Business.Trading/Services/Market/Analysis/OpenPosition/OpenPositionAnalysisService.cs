@@ -119,18 +119,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					});
 				}
 			}
-			else
-			{
-				var fixStopLossInfo = new FixStopLossInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
-				ComputeStopLossUsingParabolicSAR(
-					fixStopLossInfo,
-					activeTradingPosition.StopLossOrder,
-					currentTargetPeriodCandle);
-
-				if (fixStopLossInfo.StopLossPrice != initialPositionInfo.StopLossPrice)
-					newPositionInfo = fixStopLossInfo;
-			}
-
+			
 			var candlesCount = targetPeriodLastCandles.Count;
 			var period = (candlesCount - 2) > rsiSettings.Period ? rsiSettings.Period : candlesCount - 2;
 			var rsiValues = _indicatorComputingService.ComputeRelativeStrengthIndex(
@@ -151,18 +140,23 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.ToList();
 
 			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
-			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram < 0;
 
-			if ((currentRSIValue?.Value >= (useExtendedBorders ? 60 : 70) &&
+			var rsiBottomBorder = 70;
+			if (higherPeriodCurrentMACDValue?.MACD < 0 && higherPeriodCurrentMACDValue.Histogram < 0)
+				rsiBottomBorder = 50;
+			if (higherPeriodCurrentMACDValue?.MACD < 0 || higherPeriodCurrentMACDValue?.Histogram < 0)
+				rsiBottomBorder = 60;
+
+			if ((currentRSIValue?.Value >= rsiBottomBorder &&
 					currentRSIValue.Value < 80 &&
 					currentRSIValue.Value < previousRSIValue?.Value) ||
 				(activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentRSIValue?.Value < 30 &&
+					currentRSIValue?.Value < 40 &&
 					currentRSIValue.Value < previousRSIValue?.Value))
 			{
 				var updatePositionInfo = new UpdateClosePositionInfo
 				{
-					StopLossPrice = ((FixStopLossInfo)newPositionInfo)?.StopLossPrice ?? initialPositionInfo.StopLossPrice
+					StopLossPrice = initialPositionInfo.StopLossPrice
 				};
 
 				if (activeTradingPosition.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
@@ -172,17 +166,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 					updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice - activeTradingPosition.ClosePositionOrder.CurrencyPair.TickSize;
 
-					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 1);
+					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
 
-					updatePositionInfo.CloseStopPrice = new[] { activeTradingPosition.ClosePositionOrder.StopPrice ?? 0, topBidPrice }.Max();
+					updatePositionInfo.CloseStopPrice = !activeTradingPosition.ClosePositionOrder.StopPrice.HasValue || topBidPrice >= activeTradingPosition.ClosePositionOrder.StopPrice ?
+						topBidPrice :
+						activeTradingPosition.ClosePositionOrder.StopPrice.Value;
 				}
 				else
 				{
-					var bottomAskPrice = await _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair);
+					var bottomAskPrice = await _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
 
-					updatePositionInfo.ClosePrice = activeTradingPosition.ClosePositionOrder.Price == bottomAskPrice ?
-						bottomAskPrice :
-						bottomAskPrice - activeTradingPosition.ClosePositionOrder.CurrencyPair.TickSize;
+					updatePositionInfo.ClosePrice = activeTradingPosition.ClosePositionOrder.Price <= bottomAskPrice ?
+						activeTradingPosition.ClosePositionOrder.Price :
+						bottomAskPrice;
 
 					updatePositionInfo.CloseStopPrice = 0;
 				}
@@ -192,12 +188,26 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					newPositionInfo = updatePositionInfo;
 			}
 			else if (activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
-					currentRSIValue?.Value < (useExtendedBorders ? 60 : 70) &&
+					currentRSIValue?.Value < rsiBottomBorder &&
 					currentRSIValue.Value > previousRSIValue?.Value)
 				newPositionInfo = new SuspendPositionInfo();
 			else if (activeTradingPosition.ClosePositionOrder.OrderStateType != OrderStateType.Pending &&
 					currentRSIValue?.Value >= 80)
 				newPositionInfo = new SuspendPositionInfo();
+
+			if (newPositionInfo == null &&
+				currentTargetPeriodCandle.Moment >= currentLowPeriodCandle.Moment &&
+				currentRSIValue?.Value > previousRSIValue?.Value)
+			{
+				var fixStopLossInfo = new FixStopLossInfo { StopLossPrice = initialPositionInfo.StopLossPrice };
+				ComputeStopLossUsingParabolicSAR(
+					fixStopLossInfo,
+					activeTradingPosition.StopLossOrder,
+					currentTargetPeriodCandle);
+
+				if (fixStopLossInfo.StopLossPrice != initialPositionInfo.StopLossPrice)
+					newPositionInfo = fixStopLossInfo;
+			}
 
 			if (newPositionInfo == null)
 				return new HoldPositionInfo();

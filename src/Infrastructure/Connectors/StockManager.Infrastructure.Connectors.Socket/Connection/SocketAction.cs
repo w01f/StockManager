@@ -4,26 +4,26 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 {
 	abstract class SocketAction
 	{
-		protected readonly SocketRequest SocketRequest;
-
-		public ActionType ActionType { get; protected set; }
+		public SocketRequest Request { get; }
+		public Guid Id { get; }
 		public event EventHandler<MessageReceivedEventArgs> ResponseReceived;
 
 		protected SocketAction(SocketRequest socketRequest)
 		{
-			SocketRequest = socketRequest;
+			Id = Guid.NewGuid();
+			Request = socketRequest;
 		}
 
 		public string GetMessage()
 		{
-			return SocketRequest.EncodeSocketRequest();
+			return Request.EncodeSocketRequest();
 		}
 
 		public bool ProcessResponse(string message)
 		{
-			if (!CanProcessResponse(message)) 
+			if (!CanProcessResponse(message))
 				return false;
-			
+
 			OnMessageReceived(message);
 			return true;
 		}

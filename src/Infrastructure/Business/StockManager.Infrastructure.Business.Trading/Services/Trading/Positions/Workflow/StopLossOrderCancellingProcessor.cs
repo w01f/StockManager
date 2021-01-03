@@ -55,7 +55,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 					{
 						var activeOrders = await _ordersService.GetActiveOrders(currentState.StopLossOrder.CurrencyPair);
 						var serverSideStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.StopLossOrder.ClientId) ??
-															await _ordersService.GetOrderFromHistory(currentState.StopLossOrder.ClientId, currentState.StopLossOrder.CurrencyPair);
+													await _ordersService.GetOrderFromHistory(currentState.StopLossOrder.ClientId, currentState.StopLossOrder.CurrencyPair);
 
 						if (serverSideStopLossOrder != null)
 						{
@@ -65,8 +65,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 								var nextProcessor = new StopLossOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
 								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
 							}
-							else
+							
+							if (serverSideStopLossOrder.OrderStateType == OrderStateType.Cancelled || serverSideStopLossOrder.OrderStateType == OrderStateType.Expired)
 								nextState.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
+							else
+								throw;
 						}
 						else
 							throw;
@@ -76,6 +79,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				}
 			}
 
+			nextState.StopLossOrder.OrderStateType = OrderStateType.Cancelled;
+
 			if (currentState.ClosePositionOrder.OrderStateType != OrderStateType.Filled)
 			{
 				if (!(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
@@ -83,11 +88,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Expired))
 					try
 					{
-						nextState.ClosePositionOrder = await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+						await _ordersService.CancelOrder(currentState.ClosePositionOrder);
 					}
 					catch
 					{
 						// ignored
+					}
+					finally
+					{
+						nextState.ClosePositionOrder.OrderStateType = OrderStateType.Cancelled;
 					}
 
 				var immediateCloseOrder = new Order

@@ -58,6 +58,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 						nextState,
 						syncWithStock,
 						onPositionChangedCallback);
+
+				if(currentState==null)
+					break;
 			} while (latestCurrentState != null && selectedProcessor != null);
 
 			return latestCurrentState;

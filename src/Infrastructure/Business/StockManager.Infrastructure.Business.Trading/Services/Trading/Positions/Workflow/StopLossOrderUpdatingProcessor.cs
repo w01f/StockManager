@@ -35,11 +35,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 		public bool IsAllowToProcess(TradingPosition currentState, TradingPosition nextState)
 		{
 			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
-					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending &&
 					currentState.StopLossOrder.OrderStateType == OrderStateType.Suspended)
 				&&
 					(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
-					nextState.ClosePositionOrder.OrderStateType == OrderStateType.Pending &&
 					nextState.StopLossOrder.OrderStateType == OrderStateType.Suspended);
 		}
 
@@ -52,7 +50,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			{
 				try
 				{
-					await _ordersService.CancelOrder(currentState.StopLossOrder);
+					currentState.StopLossOrder = await _ordersService.CancelOrder(currentState.StopLossOrder);
 				}
 				catch (ConnectorException e)
 				{
@@ -70,8 +68,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 								var nextProcessor = new StopLossOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
 								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
 							}
-							else
+							
+							if (serverSideStopLossOrder.OrderStateType == OrderStateType.Cancelled || serverSideStopLossOrder.OrderStateType == OrderStateType.Expired)
 								nextState.StopLossOrder.SyncWithAnotherOrder(serverSideStopLossOrder);
+							else
+								throw;
 						}
 						else
 							throw;
@@ -81,8 +82,13 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				}
 			}
 
-			nextState.StopLossOrder.ClientId =  Guid.NewGuid();
-			nextState.StopLossOrder = await _ordersService.CreateSellMarketOrder(nextState.StopLossOrder);
+			if (currentState.StopLossOrder.OrderStateType == OrderStateType.Cancelled || currentState.StopLossOrder.OrderStateType == OrderStateType.Expired)
+			{
+				nextState.StopLossOrder.ClientId = Guid.NewGuid();
+				nextState.StopLossOrder = await _ordersService.CreateSellMarketOrder(nextState.StopLossOrder);
+			}
+			else if (syncWithStock)
+				throw new BusinessException("Unexpected order state");
 
 			var stopLossOrderEntity = _orderRepository.Get(nextState.StopLossOrder.Id);
 			if (stopLossOrderEntity == null)

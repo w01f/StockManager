@@ -77,7 +77,7 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 			tradingPosition.OpenPositionOrder.Price = marketInfo.OpenPrice;
 			if (tradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
 			{
-				tradingPosition.OpenPositionOrder.StopPrice = marketInfo.OpenStopPrice;
+				//tradingPosition.OpenPositionOrder.StopPrice = marketInfo.OpenStopPrice;
 				tradingPosition.OpenPositionOrder.OrderType = OrderType.StopLimit;
 			}
 			else
@@ -144,11 +144,11 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 			tradingPosition.OpenPositionOrder.OrderStateType = OrderStateType.Cancelled;
 		}
 
-		public static void SyncWithAnotherPosition(this TradingPosition targetPosition, TradingPosition sourcePosition)
+		public static void SyncWithAnotherPosition(this TradingPosition targetPosition, TradingPosition sourcePosition, bool syncPrice = false)
 		{
-			targetPosition.OpenPositionOrder.SyncWithAnotherOrder(sourcePosition.OpenPositionOrder);
-			targetPosition.ClosePositionOrder.SyncWithAnotherOrder(sourcePosition.ClosePositionOrder);
-			targetPosition.StopLossOrder.SyncWithAnotherOrder(sourcePosition.StopLossOrder);
+			targetPosition.OpenPositionOrder.SyncWithAnotherOrder(sourcePosition.OpenPositionOrder, syncPrice);
+			targetPosition.ClosePositionOrder.SyncWithAnotherOrder(sourcePosition.ClosePositionOrder, syncPrice);
+			targetPosition.StopLossOrder.SyncWithAnotherOrder(sourcePosition.StopLossOrder, syncPrice);
 		}
 
 		public static TradingPosition Clone(this TradingPosition source)

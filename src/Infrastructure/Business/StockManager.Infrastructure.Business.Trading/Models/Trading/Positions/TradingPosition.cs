@@ -17,6 +17,10 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Trading.Positions
 											OpenPositionOrder.OrderStateType == OrderStateType.Suspended;
 
 		public bool IsOpenPosition => OpenPositionOrder.OrderStateType == OrderStateType.Filled;
-		public bool IsClosedPosition => OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || (ClosePositionOrder.OrderStateType == OrderStateType.Cancelled || StopLossOrder.OrderStateType == OrderStateType.Cancelled);
+
+		public bool IsCompletedPosition => OpenPositionOrder.OrderStateType == OrderStateType.Cancelled ||
+										(OpenPositionOrder.OrderStateType == OrderStateType.Filled && (ClosePositionOrder.OrderStateType == OrderStateType.Cancelled || StopLossOrder.OrderStateType == OrderStateType.Cancelled));
+		public bool IsAwaitingOrderUpdating { get; set; }
+		public bool IsClosedPosition { get; set; }
 	}
 }

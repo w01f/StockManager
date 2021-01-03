@@ -12,6 +12,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 		Task<Order> CreateBuyLimitOrder(Order order);
 		Task<Order> CreateSellLimitOrder(Order order);
 		Task<Order> CreateSellMarketOrder(Order order);
+		Task RequestReplaceOrder(Order order, Guid newClientId, Action replacementErrorCallback);
+		Task RequestCancelOrder(Order order);
 		Task<Order> CancelOrder(Order order);
 	}
 }

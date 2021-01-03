@@ -71,8 +71,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 								var nextProcessor = new BuyOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
 								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
 							}
-							else
+
+							if (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Cancelled || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired)
 								nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
+							else
+								throw;
 						}
 						else
 							throw;
@@ -89,12 +92,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 					Details = $"Open position order: {JsonConvert.SerializeObject(nextState.OpenPositionOrder)}"
 				};
 			_orderRepository.Update(nextState.OpenPositionOrder.ToEntity(openOrderEntity));
-			_loggingService.LogAction(nextState.OpenPositionOrder.ToLogAction(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled ?
-				OrderActionType.Cancel :
-				OrderActionType.Update));
+			_loggingService.LogAction(nextState.OpenPositionOrder.ToLogAction(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled ? OrderActionType.Cancel : OrderActionType.Update));
 
 			if (nextState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled)
-				onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.PositionCancelled, nextState.CurrencyPairId));
+				onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.PositionCancelled, nextState));
 
 			return nextState;
 		}

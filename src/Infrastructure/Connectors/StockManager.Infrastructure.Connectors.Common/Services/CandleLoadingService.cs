@@ -12,7 +12,6 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 	public class CandleLoadingService
 	{
 		private static readonly object DbOperationLocker = new object();
-		private static readonly object CandleProcessLocker = new object();
 
 		private readonly IRepository<Domain.Core.Entities.Market.Candle> _candleRepository;
 		private readonly IStockRestConnector _stockRestConnector;
@@ -42,11 +41,8 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 
 				await _stockSocketConnector.SubscribeOnCandles(currencyPairId, candlePeriod, receivedCandles =>
 				{
-					lock (CandleProcessLocker)
-					{
-						UpdateCandles(currencyPairId, candlePeriod, receivedCandles);
-						OnCandlesUpdated(currencyPairId, candlePeriod);
-					}
+					UpdateCandles(currencyPairId, candlePeriod, receivedCandles);
+					OnCandlesUpdated(currencyPairId, candlePeriod);
 				});
 
 				_existingSubscriptions.Add(Tuple.Create(currencyPairId, candlePeriod));
@@ -159,27 +155,19 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 					}
 				}
 
-				try
-				{
-					if (newCandles.Any())
-						_candleRepository.Insert(newCandles
-							.Select(candle => candle.ToEntity(currencyPairId, candlePeriod))
-							.ToList());
+				if (newCandles.Any())
+					_candleRepository.Insert(newCandles
+						.Select(candle => candle.ToEntity(currencyPairId, candlePeriod))
+						.ToList());
 
-					if (updatedCandles.Any())
-						_candleRepository.Update(updatedCandles
-							.Select(candle =>
-							{
-								var storedEntity = storedEntities.Single(entity => entity.Moment == candle.Moment);
-								return candle.ToEntity(currencyPairId, candlePeriod, storedEntity);
-							})
-							.ToList());
-				}
-				catch (Exception e)
-				{
-					Console.WriteLine(e);
-					throw;
-				}
+				if (updatedCandles.Any())
+					_candleRepository.Update(updatedCandles
+						.Select(candle =>
+						{
+							var storedEntity = storedEntities.Single(entity => entity.Moment == candle.Moment);
+							return candle.ToEntity(currencyPairId, candlePeriod, storedEntity);
+						})
+						.ToList());
 			}
 		}
 

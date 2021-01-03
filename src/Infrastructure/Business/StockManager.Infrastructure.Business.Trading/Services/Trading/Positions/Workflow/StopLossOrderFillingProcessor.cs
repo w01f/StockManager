@@ -77,11 +77,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				currentState.ClosePositionOrder.OrderStateType == OrderStateType.Expired))
 				try
 				{
-					nextState.ClosePositionOrder = await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+					await _ordersService.CancelOrder(currentState.ClosePositionOrder);
 				}
 				catch
 				{
 					// ignored
+				}
+				finally
+				{
+					nextState.ClosePositionOrder.OrderStateType = OrderStateType.Cancelled;
 				}
 
 

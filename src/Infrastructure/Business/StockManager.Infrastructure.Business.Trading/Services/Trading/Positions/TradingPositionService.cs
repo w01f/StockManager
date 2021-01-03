@@ -41,18 +41,22 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				var currencyPair = currentPosition.OpenPositionOrder.CurrencyPair;
 				var activeOrders = await _stockRestConnector.GetActiveOrders(currencyPair);
 
+				var updatedPosition = currentPosition.Clone();
+
 				var updatedOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.OpenPositionOrder.ClientId) ??
 												await _stockRestConnector.GetOrderFromHistory(currentPosition.OpenPositionOrder.ClientId, currencyPair) ??
 												currentPosition.OpenPositionOrder;
+				updatedPosition.OpenPositionOrder.SyncWithAnotherOrder(updatedOpenPositionOrder);
+
 				var updatedClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.ClosePositionOrder.ClientId) ??
 													await _stockRestConnector.GetOrderFromHistory(currentPosition.ClosePositionOrder.ClientId, currencyPair) ??
 													currentPosition.ClosePositionOrder;
+				updatedPosition.ClosePositionOrder.SyncWithAnotherOrder(updatedClosePositionOrder);
+
 				var updatedStopLossOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentPosition.StopLossOrder.ClientId) ??
 											await _stockRestConnector.GetOrderFromHistory(currentPosition.StopLossOrder.ClientId, currencyPair) ??
 											currentPosition.StopLossOrder;
-
-				var ordersTuple = Tuple.Create(updatedOpenPositionOrder, updatedClosePositionOrder, updatedStopLossOrder);
-				var updatedPosition = ordersTuple.ToTradingPosition();
+				updatedPosition.StopLossOrder.SyncWithAnotherOrder(updatedStopLossOrder);
 
 				await _tradingWorkflowManager.UpdateTradingPositionState(currentPosition, updatedPosition, false, onPositionChangedCallback);
 			}
@@ -79,33 +83,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			return orderPairModels;
 		}
 
-		public async Task<TradingPosition> OpenPosition(NewOrderPositionInfo positionInfo, Action<PositionChangedEventArgs> onPositionChangedCallback)
+		public async Task<TradingPosition> OpenPosition(NewOrderPositionInfo positionInfo)
 		{
 			var tradingSettings = _configurationService.GetTradingSettings();
 			var currencyPair = await _stockRestConnector.GetCurrencyPair(positionInfo.CurrencyPairId);
-
 			var position = TradingPositionHelper.CreatePosition(positionInfo, currencyPair, tradingSettings);
-
-			position = await _tradingWorkflowManager.UpdateTradingPositionState(null, position, true, onPositionChangedCallback);
 			return position;
 		}
 
-		public async Task<TradingPosition> UpdatePosition(TradingPosition nextPosition, Action<PositionChangedEventArgs> onPositionChangedCallback)
+		public async Task<TradingPosition> UpdatePosition(TradingPosition currentPosition, TradingPosition nextPosition, bool syncWithStock, Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
-			var currencyPair = await _stockRestConnector.GetCurrencyPair(nextPosition.CurrencyPairId);
-			var currentPosition = _orderRepository.GetAll()
-					.Where(entity => entity.CurrencyPair.ToLower() == nextPosition.CurrencyPairId.ToLower())
-					.ToList()
-					.GroupOrders()
-					.Single()
-					.ToTradingPosition(currencyPair);
-
-			return await _tradingWorkflowManager.UpdateTradingPositionState(currentPosition, nextPosition, true, onPositionChangedCallback);
-		}
-
-		public async Task<TradingPosition> UpdatePosition(TradingPosition currentPosition, TradingPosition nextPosition, Action<PositionChangedEventArgs> onPositionChangedCallback)
-		{
-			return await _tradingWorkflowManager.UpdateTradingPositionState(currentPosition, nextPosition, true, onPositionChangedCallback);
+			return await _tradingWorkflowManager.UpdateTradingPositionState(currentPosition, nextPosition, syncWithStock, onPositionChangedCallback);
 		}
 	}
 }

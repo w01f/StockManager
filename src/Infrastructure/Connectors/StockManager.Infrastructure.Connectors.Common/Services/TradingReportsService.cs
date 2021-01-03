@@ -1,7 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading.Tasks;
+using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Common;
@@ -10,35 +11,31 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public class TradingReportsService
 	{
-		private static readonly object OrdersAccessLocker = new object();
-
+		private readonly IStockRestConnector _stockRestConnector;
 		private readonly IStockSocketConnector _stockSocketConnector;
-		private readonly List<CurrencyPair> _existingCurrencyPairsInSubscription = new List<CurrencyPair>();
+		private readonly ConcurrentDictionary<string, CurrencyPair> _existingCurrencyPairsInSubscription = new ConcurrentDictionary<string, CurrencyPair>();
 
 		public event EventHandler<TradingReportEventArgs> OrdersUpdated;
 
-		public TradingReportsService(IStockSocketConnector tradingDataConnector)
+		public TradingReportsService(IStockRestConnector stockRestConnector,
+			IStockSocketConnector tradingDataConnector)
 		{
+			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
 			_stockSocketConnector = tradingDataConnector ?? throw new ArgumentNullException(nameof(tradingDataConnector));
 		}
 
-		public async Task InitSubscription(IList<CurrencyPair> targetCurrencyPairs)
+		public async Task InitSubscription(string currencyPairId)
 		{
-			var newCurrencyPairs = targetCurrencyPairs.Where(targetPair => _existingCurrencyPairsInSubscription.All(existingPair => existingPair.Id != targetPair.Id)).ToList();
+			if (_existingCurrencyPairsInSubscription.ContainsKey(currencyPairId))
+				return;
 
-			await _stockSocketConnector.SubscribeOrders(newCurrencyPairs, order =>
-			{
-				lock (OrdersAccessLocker)
-				{
-					OnOrdersUpdated(order);
-				}
-			});
-			_existingCurrencyPairsInSubscription.AddRange(newCurrencyPairs);
-		}
+			var allCurrencyPairs = await _stockRestConnector.GetCurrencyPairs();
+			var currencyPair = allCurrencyPairs.FirstOrDefault(item => item.Id == currencyPairId);
+			if (currencyPair == null)
+				throw new BusinessException($"Currency pair {currencyPairId} not found");
 
-		public async Task InitSubscription(CurrencyPair targetCurrencyPair)
-		{
-			await InitSubscription(new[] { targetCurrencyPair });
+			await _stockSocketConnector.SubscribeOrders(currencyPair, OnOrdersUpdated);
+			_existingCurrencyPairsInSubscription.TryAdd(currencyPairId, currencyPair);
 		}
 
 		private void OnOrdersUpdated(Order order)

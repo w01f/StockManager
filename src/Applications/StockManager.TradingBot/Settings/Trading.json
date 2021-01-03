@@ -1,5 +1,5 @@
 {
     "QuoteCurrencies": [ "USD" ],
 	"MinCurrencyPairTradingVolumeInBTC": 10000.0,
-	"MaxOrderUsingBalancePart": 0.3
+	"MaxOrderUsingBalancePart": 0.05
 }

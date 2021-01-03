@@ -33,12 +33,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 		public bool IsAllowToProcess(TradingPosition currentState, TradingPosition nextState)
 		{
 			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled && currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending && currentState.StopLossOrder.OrderStateType == OrderStateType.Pending) ||
-				(currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Expired) &&
-					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled || currentState.ClosePositionOrder.OrderStateType == OrderStateType.Cancelled ||
-					currentState.StopLossOrder.OrderStateType == OrderStateType.Filled || currentState.StopLossOrder.OrderStateType == OrderStateType.Cancelled);
+				((currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled || currentState.OpenPositionOrder.OrderStateType == OrderStateType.Expired) &&
+					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled || currentState.ClosePositionOrder.OrderStateType == OrderStateType.Cancelled) &&
+					(currentState.StopLossOrder.OrderStateType == OrderStateType.Filled || currentState.StopLossOrder.OrderStateType == OrderStateType.Cancelled));
 		}
 
-		public Task<TradingPosition> ProcessTradingPositionChanging(TradingPosition currentState,
+		public async Task<TradingPosition> ProcessTradingPositionChanging(TradingPosition currentState,
 			TradingPosition nextState,
 			bool syncWithStock,
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
@@ -82,12 +82,19 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_orderHistoryRepository.Insert(currentState.ClosePositionOrder.ToHistory());
 			_orderHistoryRepository.Insert(currentState.StopLossOrder.ToHistory());
 
-			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled || currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled ?
-					TradingEventType.PositionClosedSuccessfully :
-					TradingEventType.PositionClosedDueStopLoss,
-				currentState.CurrencyPairId));
+			currentState.IsClosedPosition = true;
 
-			return Task.FromResult<TradingPosition>(null);
+			TradingEventType eventType;
+			if (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Cancelled)
+				eventType = TradingEventType.PositionClosedDueCancel;
+			else if (currentState.ClosePositionOrder.OrderStateType == OrderStateType.Filled)
+				eventType = TradingEventType.PositionClosedSuccessfully;
+			else
+				eventType = TradingEventType.PositionClosedDueStopLoss;
+
+			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(eventType, currentState));
+
+			return await Task.FromResult<TradingPosition>(null);
 		}
 	}
 }

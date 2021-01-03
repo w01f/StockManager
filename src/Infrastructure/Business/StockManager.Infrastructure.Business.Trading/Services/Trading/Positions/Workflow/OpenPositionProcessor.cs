@@ -41,10 +41,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			bool syncWithStock,
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
-			if (syncWithStock)
-			{
-				nextState.OpenPositionOrder = await _ordersService.CreateBuyLimitOrder(nextState.OpenPositionOrder);
-			}
+			nextState.OpenPositionOrder = await _ordersService.CreateBuyLimitOrder(nextState.OpenPositionOrder);
 
 			nextState.ClosePositionOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
 			nextState.StopLossOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
@@ -69,7 +66,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 			_loggingService.LogAction(nextState.OpenPositionOrder.ToLogAction(OrderActionType.Create));
 
-			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.NewPosition, $"(Pair: {nextState.CurrencyPairId})"));
+			onPositionChangedCallback?.Invoke(new PositionChangedEventArgs(TradingEventType.NewPosition, nextState));
 
 			return nextState;
 		}

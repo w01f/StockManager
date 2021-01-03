@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
-using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
-using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -49,77 +46,79 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
 			if (syncWithStock)
-				try
-				{
-					await _ordersService.CancelOrder(currentState.OpenPositionOrder);
-				}
-				catch (ConnectorException e)
-				{
-					if (e.Message?.Contains("Order not found") ?? false)
+			{
+				var newClientId = Guid.NewGuid();
+				await _ordersService.RequestReplaceOrder(currentState.OpenPositionOrder, newClientId, () => currentState.IsAwaitingOrderUpdating = false);
+				currentState.IsAwaitingOrderUpdating = true;
+
+				//currentState.OpenPositionOrder.ClientId = newClientId;
+				//currentState.ClosePositionOrder.ParentClientId = newClientId;
+				//currentState.StopLossOrder.ParentClientId = newClientId;
+
+				var openOrderEntity = _orderRepository.Get(currentState.OpenPositionOrder.Id);
+				if (openOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
 					{
-						var activeOrders = await _ordersService.GetActiveOrders(currentState.OpenPositionOrder.CurrencyPair);
-						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.OpenPositionOrder.ClientId) ??
-														await _ordersService.GetOrderFromHistory(currentState.OpenPositionOrder.ClientId, currentState.OpenPositionOrder.CurrencyPair);
-						if (serverSideOpenPositionOrder != null)
-						{
-							if (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Filled)
-							{
-								nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
-								var nextProcessor = new BuyOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
-								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
-							}
-							else
-								nextState.OpenPositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
-						}
-						else
-							throw;
-					}
-					else
-						throw;
-				}
+						Details = $"Open position order: {JsonConvert.SerializeObject(currentState.OpenPositionOrder)}"
+					};
+				_orderRepository.Update(currentState.OpenPositionOrder.ToEntity(openOrderEntity));
+				_loggingService.LogAction(currentState.OpenPositionOrder.ToLogAction(OrderActionType.Update));
 
-			nextState.OpenPositionOrder.ClientId = Guid.NewGuid();
-			nextState.ClosePositionOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
-			nextState.StopLossOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
+				var closeOrderEntity = _orderRepository.Get(currentState.ClosePositionOrder.Id);
+				if (closeOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Close position order: {JsonConvert.SerializeObject(currentState.ClosePositionOrder)}"
+					};
+				_orderRepository.Update(currentState.ClosePositionOrder.ToEntity(closeOrderEntity));
 
-			if (nextState.OpenPositionOrder.OrderStateType != OrderStateType.New &&
-				nextState.OpenPositionOrder.StopPrice == null)
-				throw new BusinessException("Unexpected order state found")
-				{
-					Details = $"Open position order: {JsonConvert.SerializeObject(nextState.OpenPositionOrder)}"
-				};
+				var stopLossOrderEntity = _orderRepository.Get(currentState.StopLossOrder.Id);
+				if (stopLossOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Stop loss order: {JsonConvert.SerializeObject(currentState.StopLossOrder)}"
+					};
+				_orderRepository.Update(currentState.StopLossOrder.ToEntity(stopLossOrderEntity));
 
-			nextState.OpenPositionOrder = await _ordersService.CreateBuyLimitOrder(nextState.OpenPositionOrder);
-			nextState.ClosePositionOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
-			nextState.StopLossOrder.ParentClientId = nextState.OpenPositionOrder.ClientId;
+				return currentState;
+			}
+			else
+			{
+				if (nextState.OpenPositionOrder.OrderStateType != OrderStateType.New &&
+					nextState.OpenPositionOrder.StopPrice == null)
+					throw new BusinessException("Unexpected order state found")
+					{
+						Details = $"Open position order: {JsonConvert.SerializeObject(nextState.OpenPositionOrder)}"
+					};
 
-			var openOrderEntity = _orderRepository.Get(nextState.OpenPositionOrder.Id);
-			if (openOrderEntity == null)
-				throw new BusinessException("Order was not found in storage")
-				{
-					Details = $"Open position order: {JsonConvert.SerializeObject(nextState.OpenPositionOrder)}"
-				};
-			_orderRepository.Update(nextState.OpenPositionOrder.ToEntity(openOrderEntity));
-			_loggingService.LogAction(nextState.OpenPositionOrder.ToLogAction(OrderActionType.Update));
+				var openOrderEntity = _orderRepository.Get(nextState.OpenPositionOrder.Id);
+				if (openOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Open position order: {JsonConvert.SerializeObject(nextState.OpenPositionOrder)}"
+					};
+				_orderRepository.Update(nextState.OpenPositionOrder.ToEntity(openOrderEntity));
+				_loggingService.LogAction(nextState.OpenPositionOrder.ToLogAction(OrderActionType.Update));
 
-			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);
-			if (closeOrderEntity == null)
-				throw new BusinessException("Order was not found in storage")
-				{
-					Details = $"Close position order: {JsonConvert.SerializeObject(nextState.ClosePositionOrder)}"
-				};
-			_orderRepository.Update(nextState.ClosePositionOrder.ToEntity(closeOrderEntity));
+				var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);
+				if (closeOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Close position order: {JsonConvert.SerializeObject(nextState.ClosePositionOrder)}"
+					};
+				_orderRepository.Update(nextState.ClosePositionOrder.ToEntity(closeOrderEntity));
 
 
-			var stopLossOrderEntity = _orderRepository.Get(nextState.StopLossOrder.Id);
-			if (stopLossOrderEntity == null)
-				throw new BusinessException("Order was not found in storage")
-				{
-					Details = $"Stop loss order: {JsonConvert.SerializeObject(nextState.StopLossOrder)}"
-				};
-			_orderRepository.Update(nextState.StopLossOrder.ToEntity(stopLossOrderEntity));
+				var stopLossOrderEntity = _orderRepository.Get(nextState.StopLossOrder.Id);
+				if (stopLossOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Stop loss order: {JsonConvert.SerializeObject(nextState.StopLossOrder)}"
+					};
+				_orderRepository.Update(nextState.StopLossOrder.ToEntity(stopLossOrderEntity));
 
-			return nextState;
+				return nextState;
+			}
 		}
 	}
 }

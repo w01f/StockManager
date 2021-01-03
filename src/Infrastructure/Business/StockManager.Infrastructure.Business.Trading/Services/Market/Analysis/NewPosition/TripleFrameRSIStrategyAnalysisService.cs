@@ -102,13 +102,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 
 			//if MACD higher then Signal then it is Bullish trend
 			//if Histogram is rising 
-			if (!(firstFrameCurrentMACDValue.Histogram.Value >= 0 ||
+			if (!(firstFrameCurrentMACDValue.MACD > 0 ||
+				firstFrameCurrentMACDValue.Histogram.Value >= 0 ||
 				firstFrameCurrentMACDValue.Histogram.Value > firstFrameOnePreviousMACDValue.Histogram))
 			{
 				return conditionCheckingResult;
 			}
-
-			var useExtendedBorders = firstFrameCurrentMACDValue.Histogram.Value >= 0;
 
 			var rsiSettings = new RSISettings
 			{
@@ -180,7 +179,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return conditionCheckingResult;
 			}
 
-			if (secondFrameCurrentRSIValue.Value > (useExtendedBorders ? 50 : 40) || secondFrameCurrentRSIValue.Value < 25)
+			var rsiTopBorder = 100;//45;
+			//if (firstFrameCurrentMACDValue.MACD > 0 && firstFrameCurrentMACDValue.Histogram.Value >= 0 )
+			//	rsiTopBorder = 65;
+			//if (firstFrameCurrentMACDValue.MACD > 0 || firstFrameCurrentMACDValue.Histogram.Value >= 0 )
+			//	rsiTopBorder = 60;
+			if (secondFrameCurrentRSIValue.Value > rsiTopBorder || secondFrameCurrentRSIValue.Value < 25)
 			{
 				return conditionCheckingResult;
 			}

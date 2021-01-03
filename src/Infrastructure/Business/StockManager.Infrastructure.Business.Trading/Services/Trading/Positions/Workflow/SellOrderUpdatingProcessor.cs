@@ -1,16 +1,13 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
 using StockManager.Domain.Core.Repositories;
 using StockManager.Infrastructure.Business.Trading.EventArgs;
-using StockManager.Infrastructure.Business.Trading.Helpers;
 using StockManager.Infrastructure.Business.Trading.Models.Trading.Positions;
 using StockManager.Infrastructure.Business.Trading.Services.Trading.Orders;
 using StockManager.Infrastructure.Common.Common;
 using StockManager.Infrastructure.Common.Models.Trading;
-using StockManager.Infrastructure.Connectors.Common.Common;
 using StockManager.Infrastructure.Utilities.Logging.Common.Enums;
 using StockManager.Infrastructure.Utilities.Logging.Models.Orders;
 using StockManager.Infrastructure.Utilities.Logging.Services;
@@ -37,14 +34,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
 					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
 						currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended ||
-						currentState.ClosePositionOrder.OrderStateType == OrderStateType.New) &&
-					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+						currentState.ClosePositionOrder.OrderStateType == OrderStateType.New))
 					&&
 					(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
 					(nextState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended ||
 						nextState.ClosePositionOrder.OrderStateType == OrderStateType.New ||
-						nextState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled) &&
-					nextState.StopLossOrder.OrderStateType == OrderStateType.Suspended);
+						nextState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled));
 		}
 
 		public async Task<TradingPosition> ProcessTradingPositionChanging(TradingPosition currentState,
@@ -52,58 +47,50 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			bool syncWithStock,
 			Action<PositionChangedEventArgs> onPositionChangedCallback)
 		{
-			if (syncWithStock && currentState.ClosePositionOrder.OrderStateType != OrderStateType.Pending)
+			if (syncWithStock)
 			{
-				try
+				if (currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending)
 				{
-					await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+					nextState.ClosePositionOrder = await _ordersService.CreateSellLimitOrder(nextState.ClosePositionOrder);
 				}
-				catch (ConnectorException e)
+				else
 				{
-					if (e.Message?.Contains("Order not found") ?? false)
-					{
-						var activeOrders = await _ordersService.GetActiveOrders(currentState.ClosePositionOrder.CurrencyPair);
-						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.ClosePositionOrder.ClientId) ??
-															await _ordersService.GetOrderFromHistory(currentState.ClosePositionOrder.ClientId, currentState.ClosePositionOrder.CurrencyPair);
+					var newClientId = Guid.NewGuid();
+					await _ordersService.RequestReplaceOrder(currentState.ClosePositionOrder, newClientId, () => currentState.IsAwaitingOrderUpdating = false);
+					currentState.IsAwaitingOrderUpdating = true;
 
-						if (serverSideClosePositionOrder != null)
+					//currentState.ClosePositionOrder.ClientId = newClientId;
+
+					var closeOrderEntity = _orderRepository.Get(currentState.ClosePositionOrder.Id);
+					if (closeOrderEntity == null)
+						throw new BusinessException("Order was not found in storage")
 						{
-							if (serverSideClosePositionOrder.OrderStateType == OrderStateType.Filled)
-							{
-								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
-								var nextProcessor = new SellOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
-								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
-							}
-							else
-								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
-						}
-						else
-							throw;
-					}
-					else
-						throw;
+							Details = $"Close position order: {JsonConvert.SerializeObject(currentState.ClosePositionOrder)}"
+						};
+					_orderRepository.Update(currentState.ClosePositionOrder.ToEntity(closeOrderEntity));
+					_loggingService.LogAction(currentState.ClosePositionOrder.ToLogAction(OrderActionType.Update));
+
+					return currentState;
 				}
 			}
 
-			nextState.ClosePositionOrder.ClientId = Guid.NewGuid();
-			if (syncWithStock && nextState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled)
-				nextState.ClosePositionOrder.OrderStateType = OrderStateType.New;
+			{
+				if (nextState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled)
+					nextState.ClosePositionOrder.OrderStateType = OrderStateType.New;
 
-			if (syncWithStock)
-				nextState.ClosePositionOrder = await _ordersService.CreateSellLimitOrder(nextState.ClosePositionOrder);
+				var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);
+				if (closeOrderEntity == null)
+					throw new BusinessException("Order was not found in storage")
+					{
+						Details = $"Close position order: {JsonConvert.SerializeObject(nextState.ClosePositionOrder)}"
+					};
+				_orderRepository.Update(nextState.ClosePositionOrder.ToEntity(closeOrderEntity));
+				_loggingService.LogAction(nextState.ClosePositionOrder.ToLogAction(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending ?
+					OrderActionType.Create :
+					OrderActionType.Update));
 
-			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);
-			if (closeOrderEntity == null)
-				throw new BusinessException("Order was not found in storage")
-				{
-					Details = $"Close position order: {JsonConvert.SerializeObject(nextState.ClosePositionOrder)}"
-				};
-			_orderRepository.Update(nextState.ClosePositionOrder.ToEntity(closeOrderEntity));
-			_loggingService.LogAction(nextState.ClosePositionOrder.ToLogAction(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending ?
-				OrderActionType.Create :
-				OrderActionType.Update));
-
-			return nextState;
+				return nextState;
+			}
 		}
 	}
 }

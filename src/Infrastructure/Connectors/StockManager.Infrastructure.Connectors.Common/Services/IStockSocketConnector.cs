@@ -15,7 +15,11 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 		Task SubscribeOnCandles(string currencyPairId, CandlePeriod period, Action<IList<Candle>> callback, int limit = 30);
 		Task SubscribeOnTickers(string currencyPairId, Action<Ticker> callback);
 		Task SubscribeOnOrderBook(string currencyPairId, Action<IList<OrderBookItem>> callback);
-		Task SubscribeOrders(IList<CurrencyPair> targetCurrencyPairs, Action<Order> callback);
+		Task SubscribeOrders(CurrencyPair targetCurrencyPair, Action<Order> callback);
+
+		Task<Order> CreateOrder(Order order, bool usePostOnly);
+		Task RequestCancelOrder(Order order);
+		Task RequestReplaceOrder(Order changedOrder, Guid newClientId, Action replacementErrorCallback);
 		
 		void SubscribeErrors(Action<Exception> callback);
 	}

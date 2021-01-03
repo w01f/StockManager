@@ -1,25 +1,26 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using System;
+using Newtonsoft.Json.Linq;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Connection
 {
-	class SingleSocketAction: SocketAction
+	class SingleSocketAction : SocketAction
 	{
-		private bool _completed;
-		private ISingleSocketRequest SingleRequest => (ISingleSocketRequest)SocketRequest;
+		private ISingleSocketRequest SingleRequest => (ISingleSocketRequest)Request;
+
+		public bool Completed { get; private set; }
+		public event EventHandler<EventArgs> ErrorReceived;
 
 		public SingleSocketAction(ISingleSocketRequest socketRequest) : base((SocketRequest)socketRequest)
-		{
-			ActionType = ActionType.Request;
-		}
+		{ }
 
 		public void Complete()
 		{
-			_completed = true;
+			Completed = true;
 		}
 
 		protected override bool CanProcessResponse(string message)
 		{
-			if (_completed)
+			if (Completed)
 				return false;
 
 			if (!SingleRequest.NeedResponse)
@@ -27,8 +28,20 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 
 			var responseObject = JObject.Parse(message);
 			if (!responseObject.ContainsKey("id")) return false;
-			var id = responseObject.Value<int>("id");
-			return SingleRequest.Id == id;
+			var id = responseObject.Value<int?>("id");
+
+			if (SingleRequest.Id != id)
+				return false;
+
+			if (message.Contains("error"))
+				OnErrorReceived(EventArgs.Empty);
+
+			return true;
+		}
+
+		private void OnErrorReceived(EventArgs e)
+		{
+			ErrorReceived?.Invoke(this, e);
 		}
 	}
 }

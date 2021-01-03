@@ -26,7 +26,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 
 			return orderBookBidItems
-				.Where(item => item.Size > avgBidSize && item.Price < topBidPrice)
+				.Where(item => item.Size > avgBidSize && item.Price <= topBidPrice)
 				.OrderByDescending(item => item.Price)
 				.Select(item => item.Price)
 				.First();
@@ -49,7 +49,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 
 			return orderBookAskItems
-				.Where(item => item.Size > avgAskSize && item.Price > bottomAskPrice)
+				.Where(item => item.Size > avgAskSize && item.Price >= bottomAskPrice)
 				.OrderBy(item => item.Price)
 				.Select(item => item.Price)
 				.First();

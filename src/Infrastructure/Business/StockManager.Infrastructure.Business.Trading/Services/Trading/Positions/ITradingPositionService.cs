@@ -11,8 +11,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 	{
 		Task<IList<TradingPosition>> GetOpenPositions();
 		Task SyncExistingPositionsWithStock(Action<PositionChangedEventArgs> onPositionChangedCallback);
-		Task<TradingPosition> OpenPosition(NewOrderPositionInfo positionInfo, Action<PositionChangedEventArgs> onPositionChangedCallback);
-		Task<TradingPosition> UpdatePosition(TradingPosition nextPosition, Action<PositionChangedEventArgs> onPositionChangedCallback);
-		Task<TradingPosition> UpdatePosition(TradingPosition currentPosition, TradingPosition nextPosition, Action<PositionChangedEventArgs> onPositionChangedCallback);
+		Task<TradingPosition> OpenPosition(NewOrderPositionInfo positionInfo);
+		Task<TradingPosition> UpdatePosition(TradingPosition currentPosition, TradingPosition nextPosition, bool syncWithStock, Action<PositionChangedEventArgs> onPositionChangedCallback);
 	}
 }

@@ -17,7 +17,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 		private readonly ExchangeConnectionSettings _connectionSettings;
 		private WebsocketClient _socket;
 		private bool _restoreConnection = true;
-		private readonly BlockingCollection<SocketAction> _socketActions = new BlockingCollection<SocketAction>();
+		private readonly ConcurrentDictionary<Guid, SocketAction> _socketActions = new ConcurrentDictionary<Guid, SocketAction>();
 		private readonly RequestIdGenerator _idGenerator = new RequestIdGenerator();
 
 		public event EventHandler<UnhandledExceptionEventArgs> Error;
@@ -28,7 +28,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 			_connectionSettings = connectionSettings;
 		}
 
-		public async Task<TResponseResult> DoRequest<TResponseResult>(ISingleSocketRequest socketRequest) where TResponseResult : class
+		public async Task<TResponseResult> DoRequest<TResponseResult>(ISingleSocketRequest socketRequest, Action errorCallback = null) where TResponseResult : class
 		{
 			await Connect();
 
@@ -42,6 +42,10 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 				socketResponse = ApiExtensions.DecodeSocketResponse<TResponseResult>(e.Message);
 				responseReceived = true;
 			};
+			socketAction.ErrorReceived += (o, e) =>
+			{
+				errorCallback?.Invoke();
+			};
 
 			RunAction(socketAction);
 
@@ -50,7 +54,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 
 			while (!responseReceived)
 			{
-				await Task.Delay(100);
+				await Task.Delay(50);
 			}
 
 			if (socketResponse?.ErrorData != null)
@@ -106,17 +110,20 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 					case WebSocketMessageType.Text:
 						try
 						{
-							foreach (var socketAction in _socketActions)
+							foreach (var socketAction in _socketActions.Values.ToList())
 							{
 								var result = socketAction.ProcessResponse(msg.Text);
 
-								if (!result)
-									continue;
-
 								if (socketAction is SingleSocketAction singleSocketAction)
 								{
-									singleSocketAction.Complete();
-									break;
+									if(result)
+										singleSocketAction.Complete();
+
+									if (singleSocketAction.Completed)
+									{
+										_socketActions.TryRemove(singleSocketAction.Id, out _);
+										break;
+									}
 								}
 							}
 						}
@@ -147,7 +154,7 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 
 		private void RunAction(SocketAction action)
 		{
-			_socketActions.Add(action);
+			_socketActions.TryAdd(action.Id, action);
 			_socket.Send(action.GetMessage());
 		}
 

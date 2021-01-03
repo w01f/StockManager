@@ -110,29 +110,38 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 				{
 					foreach (var tradingPosition in tradingPositions)
 					{
+						var nextPosition = tradingPosition.Clone();
 						if (tradingPosition.IsOpenPosition)
 						{
 							var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
-								tradingPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
+								nextPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
 							else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
-								tradingPosition.ChangePosition((FixStopLossInfo)marketInfo);
+								nextPosition.ChangePosition((FixStopLossInfo)marketInfo);
 							else if (marketInfo.PositionType == OpenMarketPositionType.Suspend)
-								tradingPosition.ChangePosition((SuspendPositionInfo)marketInfo);
+								nextPosition.ChangePosition((SuspendPositionInfo)marketInfo);
 
 							if (marketInfo.PositionType != OpenMarketPositionType.Hold)
-								await _tradingPositionService.UpdatePosition(tradingPosition, onPositionChangedCallback);
+							{
+								var updatedPosition = await _tradingPositionService.UpdatePosition(tradingPosition, nextPosition, true, onPositionChangedCallback);
+								if (updatedPosition != null)
+									tradingPosition.SyncWithAnotherPosition(updatedPosition, true);
+							}
 						}
 						else if (tradingPosition.IsPendingPosition)
 						{
 							var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
-								tradingPosition.ChangePosition((UpdateOrderInfo)marketInfo);
+								nextPosition.ChangePosition((UpdateOrderInfo)marketInfo);
 							else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
-								tradingPosition.ChangePosition((CancelOrderInfo)marketInfo);
+								nextPosition.ChangePosition((CancelOrderInfo)marketInfo);
 
 							if (marketInfo.PositionType != PendingMarketPositionType.Hold)
-								await _tradingPositionService.UpdatePosition(tradingPosition, onPositionChangedCallback);
+							{
+								var updatedPosition = await _tradingPositionService.UpdatePosition(tradingPosition, nextPosition, true, onPositionChangedCallback);
+								if (updatedPosition != null)
+									tradingPosition.SyncWithAnotherPosition(updatedPosition, true);
+							}
 						}
 						else
 							throw new BusinessException("Unexpected position state")
@@ -200,8 +209,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
 						if (marketInfo.PositionType != NewMarketPositionType.Wait)
 						{
-							var newPosition = await _tradingPositionService.OpenPosition((NewOrderPositionInfo)marketInfo, onPositionChangedCallback);
-							_tradingEventsObserver.RaisePositionChanged(TradingEventType.NewPosition, newPosition.CurrencyPairId);
+							var newPosition = await _tradingPositionService.OpenPosition((NewOrderPositionInfo)marketInfo);
+							newPosition = await _tradingPositionService.UpdatePosition(null, newPosition, true, onPositionChangedCallback);
+							_tradingEventsObserver.RaisePositionChanged(TradingEventType.NewPosition, newPosition);
 							break;
 						}
 					}

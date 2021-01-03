@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using StockManager.Domain.Core.Enums;
@@ -23,7 +24,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 {
 	public class TradingPositionWorker
 	{
-		private readonly object _positionUpdatingLocker = new object();
+		private readonly SemaphoreSlim _positionUpdatingSemaphore = new SemaphoreSlim(1, 1);
+		private long _positionUpdatingTasksCount;
 
 		private readonly CandleLoadingService _candleLoadingService;
 		private readonly OrderBookLoadingService _orderBookLoadingService;
@@ -64,88 +66,28 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 
 		public async Task CreateNewPosition(NewOrderPositionInfo positionInfo)
 		{
-			// ReSharper disable once InconsistentlySynchronizedField
-			Position = await _tradingPositionService.OpenPosition(positionInfo, OnPositionChanged);
+			Position = await _tradingPositionService.OpenPosition(positionInfo);
+			Position = await _tradingPositionService.UpdatePosition(null, Position, true, OnPositionChanged);
 			await SubscribeOnTradingEvents();
-		}
-
-		private async Task AnalyzePosition()
-		{
-			if (Position.IsOpenPosition)
-			{
-				var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(Position);
-				if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
-					Position.ChangePosition((UpdateClosePositionInfo)marketInfo);
-				else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
-					Position.ChangePosition((FixStopLossInfo)marketInfo);
-				else if (marketInfo.PositionType == OpenMarketPositionType.Suspend)
-					Position.ChangePosition((SuspendPositionInfo)marketInfo);
-
-				if (marketInfo.PositionType != OpenMarketPositionType.Hold)
-					await _tradingPositionService.UpdatePosition(Position, OnPositionChanged);
-			}
-			else if (Position.IsPendingPosition)
-			{
-				var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(Position);
-				if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
-					Position.ChangePosition((UpdateOrderInfo)marketInfo);
-				else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
-					Position.ChangePosition((CancelOrderInfo)marketInfo);
-
-				if (marketInfo.PositionType != PendingMarketPositionType.Hold)
-					await _tradingPositionService.UpdatePosition(Position, OnPositionChanged);
-			}
-			else
-				throw new BusinessException("Unexpected position state")
-				{
-					Details = $"Order pair: {JsonConvert.SerializeObject(Position)}"
-				};
-		}
-
-		private async Task UpdatePosition(Order changedOrder)
-		{
-			var orderIds = new[] { Position.OpenPositionOrder.ClientId, Position.ClosePositionOrder.ClientId, Position.StopLossOrder.ClientId };
-			if (orderIds.Contains(changedOrder.ClientId))
-			{
-				var nextPosition = Position.Clone();
-				if (Position.OpenPositionOrder.ClientId == changedOrder.ClientId)
-					nextPosition.OpenPositionOrder.SyncWithAnotherOrder(changedOrder);
-				else if (Position.ClosePositionOrder.ClientId == changedOrder.ClientId)
-					nextPosition.ClosePositionOrder.SyncWithAnotherOrder(changedOrder);
-				else if (Position.StopLossOrder.ClientId == changedOrder.ClientId)
-					nextPosition.StopLossOrder.SyncWithAnotherOrder(changedOrder);
-
-				nextPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, OnPositionChanged);
-				if (nextPosition != null)
-					Position.SyncWithAnotherPosition(nextPosition);
-			}
-		}
-
-		private async Task UpdateOrderPrice()
-		{
-			if (Position.OpenPositionOrder.OrderStateType == OrderStateType.New)
-			{
-				var newPrice = await _orderBookLoadingService.GetTopBidPrice(Position.OpenPositionOrder.CurrencyPair);
-				if (newPrice > Position.OpenPositionOrder.Price)
-				{
-					var nextPosition = Position.Clone();
-					nextPosition.OpenPositionOrder.Price = newPrice;
-					nextPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, OnPositionChanged);
-					if (nextPosition != null)
-						Position.SyncWithAnotherPosition(nextPosition);
-				}
-			}
 		}
 
 		private async Task SubscribeOnTradingEvents()
 		{
 			_workingCandlePeriod = _configurationService.GetTradingSettings().Period;
+			var tradingSettings = _configurationService.GetTradingSettings();
+			var periodsForAnalysis = new[]
+			{
+				tradingSettings.Period.GetLowerFramePeriod(),
+				tradingSettings.Period,
+				tradingSettings.Period.GetHigherFramePeriod()
+			};
+			await _candleLoadingService.InitSubscription(Position.CurrencyPairId, periodsForAnalysis);
 			_candleLoadingService.CandlesUpdated += OnCandlesUpdated;
 
 			await _orderBookLoadingService.InitSubscription(Position.CurrencyPair.Id);
 			_orderBookLoadingService.OrderBookUpdated += OnOrderBookUpdated;
 
-			await _tradingReportsService.InitSubscription(Position.CurrencyPair);
+			await _tradingReportsService.InitSubscription(Position.CurrencyPairId);
 			_tradingReportsService.OrdersUpdated += OnOrdersUpdated;
 		}
 
@@ -156,52 +98,177 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			_tradingReportsService.OrdersUpdated -= OnOrdersUpdated;
 		}
 
-		private void OnCandlesUpdated(object sender, CandlesUpdatedEventArgs e)
+		private async void OnCandlesUpdated(object sender, CandlesUpdatedEventArgs e)
 		{
-			lock (_positionUpdatingLocker)
+			await _positionUpdatingSemaphore.WaitAsync();
+			try
 			{
 				if (e.Period != _workingCandlePeriod || Position.CurrencyPairId != e.CurrencyPairId)
 					return;
 
-				if (Position.IsClosedPosition)
+				if (Position.IsAwaitingOrderUpdating)
 					return;
 
-				AnalyzePosition().Wait();
+				if (Position.IsCompletedPosition)
+					return;
+
+				var nextPosition = Position.Clone();
+				if (Position.IsOpenPosition)
+				{
+					var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(Position);
+					if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
+						nextPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
+					else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
+						nextPosition.ChangePosition((FixStopLossInfo)marketInfo);
+					else if (marketInfo.PositionType == OpenMarketPositionType.Suspend)
+						nextPosition.ChangePosition((SuspendPositionInfo)marketInfo);
+
+					if (marketInfo.PositionType != OpenMarketPositionType.Hold)
+					{
+						var updatedPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, true, OnPositionChanged);
+						if (updatedPosition != null)
+							Position.SyncWithAnotherPosition(updatedPosition, true);
+					}
+				}
+				else if (Position.IsPendingPosition)
+				{
+					var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(Position);
+					if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
+						nextPosition.ChangePosition((UpdateOrderInfo)marketInfo);
+					else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
+						nextPosition.ChangePosition((CancelOrderInfo)marketInfo);
+
+					if (marketInfo.PositionType != PendingMarketPositionType.Hold)
+					{
+						var updatedPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, true, OnPositionChanged);
+						if (updatedPosition != null)
+							Position.SyncWithAnotherPosition(updatedPosition, true);
+					}
+				}
+				else
+					throw new BusinessException("Unexpected position state")
+					{
+						Details = $"Order pair: {JsonConvert.SerializeObject(Position)}"
+					};
+			}
+			finally
+			{
+				_positionUpdatingSemaphore.Release();
 			}
 		}
 
-		private void OnOrderBookUpdated(object sender, OrderBookUpdatedEventArgs e)
+		private async void OnOrderBookUpdated(object sender, OrderBookUpdatedEventArgs e)
 		{
-			lock (_positionUpdatingLocker)
+			if (Position.CurrencyPairId != e.CurrencyPairId)
+				return;
+
+			if (Position.IsAwaitingOrderUpdating)
+				return;
+
+			if (Interlocked.Read(ref _positionUpdatingTasksCount) > 0)
+				return;
+
+			Interlocked.Increment(ref _positionUpdatingTasksCount);
+
+			await _positionUpdatingSemaphore.WaitAsync();
+			try
 			{
-				if (Position.CurrencyPairId != e.CurrencyPairId)
-					return;
-
-				if (Position.IsClosedPosition)
-					return;
-
-				Task.WaitAll(UpdateOrderPrice());
+				if (!Position.IsCompletedPosition)
+				{
+					if (Position.OpenPositionOrder.OrderStateType == OrderStateType.New)
+					{
+						var newPrice = await _orderBookLoadingService.GetTopBidPrice(Position.OpenPositionOrder.CurrencyPair, 3);
+						if (newPrice > Position.OpenPositionOrder.Price)
+						{
+							var nextPosition = Position.Clone();
+							nextPosition.OpenPositionOrder.Price = newPrice;
+							nextPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, true, OnPositionChanged);
+							if (nextPosition != null)
+								Position.SyncWithAnotherPosition(nextPosition, true);
+						}
+					}
+					else if (Position.ClosePositionOrder.OrderStateType == OrderStateType.New)
+					{
+						var newPrice = await _orderBookLoadingService.GetBottomAskPrice(Position.OpenPositionOrder.CurrencyPair, 3);
+						if (newPrice < Position.ClosePositionOrder.Price)
+						{
+							var nextPosition = Position.Clone();
+							nextPosition.ClosePositionOrder.Price = newPrice;
+							nextPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, true, OnPositionChanged);
+							if (nextPosition != null)
+								Position.SyncWithAnotherPosition(nextPosition, true);
+						}
+					}
+				}
 			}
+			finally
+			{
+				_positionUpdatingSemaphore.Release();
+			}
+
+			Interlocked.Decrement(ref _positionUpdatingTasksCount);
 		}
 
-		private void OnOrdersUpdated(object sender, TradingReportEventArgs e)
+		private async void OnOrdersUpdated(object sender, TradingReportEventArgs e)
 		{
-			lock (_positionUpdatingLocker)
+			await _positionUpdatingSemaphore.WaitAsync();
+			try
 			{
-				if(Position.IsClosedPosition)
+				if (Position.IsCompletedPosition)
 					return;
 
-				Task.WaitAll(UpdatePosition(e.ChangedOrder));
+				var changedOrder = e.ChangedOrder;
+				var orderIds = new[] { Position.OpenPositionOrder.ClientId, Position.ClosePositionOrder.ClientId, Position.StopLossOrder.ClientId };
+				if (orderIds.Contains(changedOrder.ClientId))
+				{
+					var nextPosition = Position.Clone();
+					Order targetOrder = null;
+					if (Position.OpenPositionOrder.ClientId == changedOrder.ClientId)
+						targetOrder = nextPosition.OpenPositionOrder;
+					else if (Position.ClosePositionOrder.ClientId == changedOrder.ClientId)
+						targetOrder = nextPosition.ClosePositionOrder;
+					else if (Position.StopLossOrder.ClientId == changedOrder.ClientId)
+						targetOrder = nextPosition.StopLossOrder;
+
+					if (targetOrder != null && (Position.IsAwaitingOrderUpdating || targetOrder.OrderStateType != changedOrder.OrderStateType))
+					{
+						if (targetOrder.OrderStateType == OrderStateType.Suspended &&
+							targetOrder.OrderType == OrderType.StopLimit &&
+							changedOrder.OrderStateType == OrderStateType.New)
+						{
+							changedOrder.OrderType = OrderType.Limit;
+							changedOrder.StopPrice = null;
+						}
+
+						if (changedOrder.OrderStateType == OrderStateType.Expired)
+							changedOrder.OrderStateType = OrderStateType.Cancelled;
+
+						targetOrder.SyncWithAnotherOrder(changedOrder);
+
+						nextPosition = await _tradingPositionService.UpdatePosition(Position, nextPosition, false, OnPositionChanged);
+						if (nextPosition != null)
+							Position.SyncWithAnotherPosition(nextPosition, true);
+					}
+
+					Position.IsAwaitingOrderUpdating = false;
+				}
+			}
+			finally
+			{
+				_positionUpdatingSemaphore.Release();
 			}
 		}
 
 		private void OnPositionChanged(PositionChangedEventArgs eventArgs)
 		{
-			var positionClosed = eventArgs.EventType == TradingEventType.PositionClosedDueStopLoss || eventArgs.EventType == TradingEventType.PositionClosedSuccessfully;
-			if (positionClosed)
+			if (eventArgs.Position.IsClosedPosition)
+			{
+				Position.SyncWithAnotherPosition(eventArgs.Position);
 				UnsubscribeTradingEvents();
+			}
+
 			PositionChanged?.Invoke(this, eventArgs);
-			if (positionClosed)
+			if (eventArgs.Position.IsClosedPosition)
 				PositionChanged = null;
 		}
 	}

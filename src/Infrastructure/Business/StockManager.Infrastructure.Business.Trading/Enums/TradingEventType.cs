@@ -6,6 +6,7 @@
 		PositionOpened,
 		PositionCancelled,
 		PositionClosedSuccessfully,
+		PositionClosedDueCancel,
 		PositionClosedDueStopLoss
 	}
 }

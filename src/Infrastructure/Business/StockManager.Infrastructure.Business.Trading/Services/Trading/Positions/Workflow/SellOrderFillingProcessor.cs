@@ -36,14 +36,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
 					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
 						currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended ||
-						currentState.ClosePositionOrder.OrderStateType == OrderStateType.New) &&
-					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+						currentState.ClosePositionOrder.OrderStateType == OrderStateType.New))
 					&&
 					(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
-					nextState.ClosePositionOrder.OrderStateType == OrderStateType.Filled &&
-					(nextState.StopLossOrder.OrderStateType == OrderStateType.Suspended ||
-					nextState.StopLossOrder.OrderStateType == OrderStateType.Cancelled ||
-					nextState.StopLossOrder.OrderStateType == OrderStateType.Expired));
+					nextState.ClosePositionOrder.OrderStateType == OrderStateType.Filled);
 		}
 
 		public async Task<TradingPosition> ProcessTradingPositionChanging(TradingPosition currentState,
@@ -78,11 +74,15 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				nextState.StopLossOrder.OrderStateType == OrderStateType.Expired))
 				try
 				{
-					nextState.StopLossOrder = await _ordersService.CancelOrder(currentState.StopLossOrder);
+					await _ordersService.CancelOrder(currentState.StopLossOrder);
 				}
 				catch
 				{
 					// ignored
+				}
+				finally
+				{
+					nextState.StopLossOrder.OrderStateType = OrderStateType.Cancelled;
 				}
 
 			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);

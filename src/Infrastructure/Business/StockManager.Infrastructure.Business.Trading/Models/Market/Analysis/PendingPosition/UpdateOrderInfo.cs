@@ -5,7 +5,6 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Pe
 	public class UpdateOrderInfo : PendingPositionInfo
 	{
 		public decimal OpenPrice { get; set; }
-		public decimal OpenStopPrice { get; set; }
 
 		public decimal ClosePrice { get; set; }
 		public decimal CloseStopPrice { get; set; }

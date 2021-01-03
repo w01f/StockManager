@@ -37,9 +37,9 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 			return result;
 		}
 
-		public static void SyncWithAnotherOrder(this Order targetOrder, Order sourceOrder)
+		public static void SyncWithAnotherOrder(this Order targetOrder, Order sourceOrder, bool syncPrice = false)
 		{
-			targetOrder.ExtId = sourceOrder.ExtId;
+			targetOrder.ClientId = sourceOrder.ClientId;
 			if (sourceOrder.ParentClientId != Guid.Empty)
 				targetOrder.ParentClientId = sourceOrder.ParentClientId;
 
@@ -47,6 +47,12 @@ namespace StockManager.Infrastructure.Business.Trading.Helpers
 			targetOrder.OrderType = sourceOrder.OrderType;
 			targetOrder.OrderStateType = sourceOrder.OrderStateType;
 			targetOrder.TimeInForce = sourceOrder.TimeInForce;
+
+			if (syncPrice)
+			{
+				targetOrder.Price = sourceOrder.Price;
+				targetOrder.StopPrice = sourceOrder.StopPrice;
+			}
 		}
 
 		public static Order Clone(this Order source, bool cloneId = false)

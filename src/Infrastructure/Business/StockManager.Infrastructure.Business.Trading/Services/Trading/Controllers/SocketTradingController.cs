@@ -266,15 +266,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 		private void OnPositionChanged(TradingPositionWorker worker, PositionChangedEventArgs eventArgs)
 		{
-			switch (eventArgs.EventType)
-			{
-				case TradingEventType.PositionClosedSuccessfully:
-				case TradingEventType.PositionClosedDueStopLoss:
-					_activePositionWorkers.TryRemove(worker.Position.CurrencyPairId, out _);
-					break;
-			}
+			if (eventArgs.Position.IsClosedPosition)
+				_activePositionWorkers.TryRemove(worker.Position.CurrencyPairId, out _);
 
-			_tradingEventsObserver.RaisePositionChanged(eventArgs.EventType, eventArgs.Details);
+			_tradingEventsObserver.RaisePositionChanged(eventArgs.EventType, eventArgs.Position);
 		}
 
 		private void OnException(UnhandledExceptionEventArgs e)

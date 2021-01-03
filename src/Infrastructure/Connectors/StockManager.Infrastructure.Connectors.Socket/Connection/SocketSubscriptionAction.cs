@@ -5,14 +5,13 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 {
 	class SocketSubscriptionAction : SocketAction
 	{
-		private ISocketSubscriptionRequest SubscriptionRequest => (ISocketSubscriptionRequest)SocketRequest;
+		private ISocketSubscriptionRequest SubscriptionRequest => (ISocketSubscriptionRequest)Request;
 
+		public string ResponseMethod { get; private set; }
 		public bool NeedUnsubscribe => !string.IsNullOrWhiteSpace(SubscriptionRequest.UnsubscribeMethodName);
 
 		public SocketSubscriptionAction(ISocketSubscriptionRequest socketRequest) : base((SocketRequest)socketRequest)
-		{
-			ActionType = ActionType.Subscription;
-		}
+		{ }
 
 		public ISingleSocketRequest GetUnsubscribeRequest()
 		{
@@ -30,10 +29,10 @@ namespace StockManager.Infrastructure.Connectors.Socket.Connection
 		{
 			var responseObject = JObject.Parse(message);
 			if (!responseObject.ContainsKey("method")) return false;
-			var methodName = responseObject.Value<string>("method");
+			ResponseMethod = responseObject.Value<string>("method");
 
-			return string.Equals(SubscriptionRequest.SnapshotMethodName, methodName, StringComparison.OrdinalIgnoreCase) ||
-					string.Equals(SubscriptionRequest.NotificationMethodName, methodName, StringComparison.OrdinalIgnoreCase);
+			return string.Equals(SubscriptionRequest.SnapshotMethodName, ResponseMethod, StringComparison.OrdinalIgnoreCase) ||
+					string.Equals(SubscriptionRequest.NotificationMethodName, ResponseMethod, StringComparison.OrdinalIgnoreCase);
 		}
 	}
 }

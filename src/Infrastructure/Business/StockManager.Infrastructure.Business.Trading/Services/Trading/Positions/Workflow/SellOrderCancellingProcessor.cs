@@ -37,12 +37,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			return (currentState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
 					(currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended ||
 						currentState.ClosePositionOrder.OrderStateType == OrderStateType.New ||
-						currentState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled) &&
-					currentState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
+						currentState.ClosePositionOrder.OrderStateType == OrderStateType.PartiallyFilled))
 					&&
 					(nextState.OpenPositionOrder.OrderStateType == OrderStateType.Filled &&
-					(nextState.ClosePositionOrder.OrderStateType == OrderStateType.Pending || nextState.ClosePositionOrder.OrderStateType == OrderStateType.Expired) &&
-					nextState.ClosePositionOrder.OrderStateType == OrderStateType.Suspended);
+					(nextState.ClosePositionOrder.OrderStateType == OrderStateType.Cancelled || nextState.ClosePositionOrder.OrderStateType == OrderStateType.Expired));
 		}
 
 		public async Task<TradingPosition> ProcessTradingPositionChanging(TradingPosition currentState,
@@ -54,26 +52,29 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 			{
 				try
 				{
-					await _ordersService.CancelOrder(currentState.ClosePositionOrder);
+					nextState.ClosePositionOrder = await _ordersService.CancelOrder(currentState.ClosePositionOrder);
 				}
 				catch (ConnectorException e)
 				{
 					if (e.Message?.Contains("Order not found") ?? false)
 					{
 						var activeOrders = await _ordersService.GetActiveOrders(currentState.ClosePositionOrder.CurrencyPair);
-						var serverSideClosePositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.ClosePositionOrder.ClientId) ??
+						var serverSideOpenPositionOrder = activeOrders.FirstOrDefault(order => order.ClientId == currentState.ClosePositionOrder.ClientId) ??
 														await _ordersService.GetOrderFromHistory(currentState.ClosePositionOrder.ClientId, currentState.ClosePositionOrder.CurrencyPair);
 
-						if (serverSideClosePositionOrder != null)
+						if (serverSideOpenPositionOrder != null)
 						{
-							if (serverSideClosePositionOrder.OrderStateType == OrderStateType.Filled)
+							if (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Filled)
 							{
-								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
-								var nextProcessor = new SellOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
+								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
+								var nextProcessor = new BuyOrderFillingProcessor(_orderRepository, _ordersService, _loggingService);
 								return await nextProcessor.ProcessTradingPositionChanging(currentState, nextState, true, onPositionChangedCallback);
 							}
+
+							if (serverSideOpenPositionOrder.OrderStateType == OrderStateType.Cancelled || serverSideOpenPositionOrder.OrderStateType == OrderStateType.Expired)
+								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideOpenPositionOrder);
 							else
-								nextState.ClosePositionOrder.SyncWithAnotherOrder(serverSideClosePositionOrder);
+								throw;
 						}
 						else
 							throw;
@@ -82,7 +83,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 						throw;
 				}
 			}
-			
+
 			nextState.ClosePositionOrder.OrderStateType = OrderStateType.Pending;
 
 			var closeOrderEntity = _orderRepository.Get(nextState.ClosePositionOrder.Id);

@@ -4,13 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Enums;
-using StockManager.Infrastructure.Common.Models.Trading;
 using StockManager.Infrastructure.Connectors.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
 using StockManager.Infrastructure.Connectors.Socket.Connection;
 using StockManager.Infrastructure.Connectors.Socket.Models.NotificationParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.RequestParameters;
 using StockManager.Infrastructure.Connectors.Socket.Models.Market;
+using StockManager.Infrastructure.Connectors.Socket.Models.Trading;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
@@ -149,9 +149,31 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 			});
 		}
 
-		public async Task SubscribeOrders(IList<Infrastructure.Common.Models.Market.CurrencyPair> targetCurrencyPairs, Action<Order> callback)
+		public async Task SubscribeOrders(Infrastructure.Common.Models.Market.CurrencyPair targetCurrencyPair, Action<Infrastructure.Common.Models.Trading.Order> callback)
 		{
 			var request = new SocketSubscriptionRequest<EmptyRequestParameters>
+			{
+				RequestMethodName = "subscribeReports",
+				SnapshotMethodName = null,
+				NotificationMethodName = "activeOrders",
+				UnsubscribeMethodName = null,
+				RequestParameters = new EmptyRequestParameters()
+			};
+
+			await _connection.Subscribe<Order[]>(request, orders =>
+			{
+				foreach (var order in orders)
+				{
+					if (order.CurrencyPairId != targetCurrencyPair.Id)
+						continue;
+
+					var result = order.ToOuterModel(targetCurrencyPair);
+
+					callback(result);
+				}
+			});
+
+			request = new SocketSubscriptionRequest<EmptyRequestParameters>
 			{
 				RequestMethodName = "subscribeReports",
 				SnapshotMethodName = null,
@@ -160,14 +182,74 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 				RequestParameters = new EmptyRequestParameters()
 			};
 
-			await _connection.Subscribe<Models.Trading.Order>(request, order =>
+			await _connection.Subscribe<Order>(request, order =>
 			{
-				var currencyPair = targetCurrencyPairs.FirstOrDefault(item => String.Equals(item.Id, order.CurrencyPairId, StringComparison.OrdinalIgnoreCase));
+				if (order.CurrencyPairId != targetCurrencyPair.Id)
+					return;
 
-				var result = Models.Trading.OrderMap.ToOuterModel(order, currencyPair);
+				var result = order.ToOuterModel(targetCurrencyPair);
 
 				callback(result);
 			});
+		}
+
+		public async Task<Infrastructure.Common.Models.Trading.Order> CreateOrder(Infrastructure.Common.Models.Trading.Order order, bool usePostOnly)
+		{
+			var orderInner = order.ToInnerModel();
+			orderInner.PostOnly = usePostOnly;
+
+			var request = new SingleSocketRequest<CreateOrderRequestParameters>
+			{
+				RequestMethodName = "newOrder",
+				NeedResponse = false,
+				RequestParameters = new CreateOrderRequestParameters
+				{
+					ClientId = orderInner.ClientId,
+					CurrencyPairId = orderInner.CurrencyPairId,
+					Price = orderInner.Price,
+					Quantity = orderInner.Quantity,
+					OrderSide = orderInner.OrderSide,
+					StopPrice = orderInner.StopPrice,
+					OrderType = orderInner.OrderType,
+					ExpireTime = orderInner.ExpireTime,
+					TimeInForce = orderInner.TimeInForce,
+					PostOnly = usePostOnly,
+				}
+			};
+			await _connection.DoRequest<Order>(request);
+			return order;
+		}
+
+		public async Task RequestCancelOrder(Infrastructure.Common.Models.Trading.Order order)
+		{
+			var request = new SingleSocketRequest<ChangeOrderStateRequestParameters>
+			{
+				RequestMethodName = "cancelOrder",
+				NeedResponse = false,
+				RequestParameters = new ChangeOrderStateRequestParameters()
+				{
+					ExistingClientId = order.ClientId.ToString("N"),
+				}
+			};
+			await _connection.DoRequest<Order>(request);
+		}
+
+		public async Task RequestReplaceOrder(Infrastructure.Common.Models.Trading.Order changedOrder, Guid newClientId, Action replacementErrorCallback)
+		{
+			var request = new SingleSocketRequest<ChangeOrderStateRequestParameters>
+			{
+				RequestMethodName = "cancelReplaceOrder",
+				NeedResponse = false,
+				RequestParameters = new ChangeOrderStateRequestParameters()
+				{
+					ExistingClientId = changedOrder.ClientId.ToString("N"),
+					NewClientId = newClientId.ToString("N"),
+					Price = changedOrder.Price,
+					StopPrice = changedOrder.StopPrice ?? 0,
+					Quantity = changedOrder.Quantity
+				}
+			};
+			await _connection.DoRequest<Order>(request, replacementErrorCallback);
 		}
 
 		public void SubscribeErrors(Action<Exception> callback)

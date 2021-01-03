@@ -4,7 +4,7 @@ namespace StockManager.Infrastructure.Business.Trading.Models.Market.Analysis.Op
 {
 	public abstract class OpenPositionInfo
 	{
-		public OpenMarketPositionType PositionType { get; }
+		public OpenMarketPositionType PositionType { get; set; }
 
 		protected OpenPositionInfo(OpenMarketPositionType positionType)
 		{

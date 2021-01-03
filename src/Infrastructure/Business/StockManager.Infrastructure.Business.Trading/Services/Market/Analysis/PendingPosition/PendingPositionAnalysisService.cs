@@ -129,47 +129,29 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				.ToList();
 
 			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
-			var useExtendedBorders = higherPeriodCurrentMACDValue?.Histogram >= 0;
+			var rsiTopBorder = 100;//45;
+								   //if (higherPeriodCurrentMACDValue?.MACD > 0 && higherPeriodCurrentMACDValue.Histogram >= 0)
+								   //	rsiTopBorder = 65;
+								   //if (higherPeriodCurrentMACDValue?.MACD > 0 || higherPeriodCurrentMACDValue?.Histogram >= 0)
+								   //	rsiTopBorder = 60;
 
-			if (currentRSIValue.Value <= (useExtendedBorders ? 50 : 40) &&
+			if (currentRSIValue.Value <= rsiTopBorder &&
 				currentRSIValue.Value > 25 &&
 				((activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended && currentRSIValue.Value > previousRSIValue?.Value) ||
 				(activeTradingPosition.OpenPositionOrder.OrderStateType != OrderStateType.Suspended)) &&
 				Math.Abs(minWilliamsRValue - currentRSIValue.Value ?? 0) < 20)
 			{
-				decimal stopOpenPrice;
-				decimal openPrice;
-				if (activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.Suspended)
-				{
-					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair);
+				var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair, 3);
 
-					openPrice = activeTradingPosition.OpenPositionOrder.Price == topBidPrice ?
-						topBidPrice :
-						(topBidPrice + activeTradingPosition.OpenPositionOrder.CurrencyPair.TickSize);
+				var openPrice = activeTradingPosition.OpenPositionOrder.Price >= topBidPrice ?
+					activeTradingPosition.OpenPositionOrder.Price :
+					topBidPrice;
 
-					var bottomMeaningfulAskPrice = await _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair, 1);
-
-					stopOpenPrice = new[] { activeTradingPosition.OpenPositionOrder.StopPrice ?? 0, bottomMeaningfulAskPrice }.Min();
-				}
-				else
-				{
-					stopOpenPrice = 0;
-
-					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.OpenPositionOrder.CurrencyPair);
-
-					openPrice = new[]
-						{
-							activeTradingPosition.OpenPositionOrder.Price == topBidPrice ? topBidPrice : (topBidPrice + activeTradingPosition.OpenPositionOrder.CurrencyPair.TickSize),
-							activeTradingPosition.OpenPositionOrder.Price
-						}.Max();
-				}
-
-				if (activeTradingPosition.OpenPositionOrder.Price != openPrice ||
-					activeTradingPosition.OpenPositionOrder.StopPrice != stopOpenPrice)
+				if (activeTradingPosition.OpenPositionOrder.OrderStateType == OrderStateType.New &&
+					activeTradingPosition.OpenPositionOrder.Price != openPrice)
 					return new UpdateOrderInfo
 					{
 						OpenPrice = openPrice,
-						OpenStopPrice = stopOpenPrice,
 
 						ClosePrice = new[] { currentTargetPeriodCandle.MaxPrice, activeTradingPosition.ClosePositionOrder.Price }.Max(),
 						CloseStopPrice = new[] { currentTargetPeriodCandle.MinPrice, activeTradingPosition.ClosePositionOrder.StopPrice ?? 0 }.Min(),
