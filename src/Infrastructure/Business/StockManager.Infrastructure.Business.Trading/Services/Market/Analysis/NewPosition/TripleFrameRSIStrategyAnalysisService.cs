@@ -179,11 +179,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				return conditionCheckingResult;
 			}
 
-			var rsiTopBorder = 100;//45;
-			//if (firstFrameCurrentMACDValue.MACD > 0 && firstFrameCurrentMACDValue.Histogram.Value >= 0 )
-			//	rsiTopBorder = 65;
-			//if (firstFrameCurrentMACDValue.MACD > 0 || firstFrameCurrentMACDValue.Histogram.Value >= 0 )
-			//	rsiTopBorder = 60;
+			var rsiTopBorder = 45;
+			if (firstFrameCurrentMACDValue.MACD > 0 && firstFrameCurrentMACDValue.Histogram.Value >= 0)
+				rsiTopBorder = 65;
+			if (firstFrameCurrentMACDValue.MACD > 0 || firstFrameCurrentMACDValue.Histogram.Value >= 0)
+				rsiTopBorder = 60;
 			if (secondFrameCurrentRSIValue.Value > rsiTopBorder || secondFrameCurrentRSIValue.Value < 25)
 			{
 				return conditionCheckingResult;
