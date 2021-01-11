@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using StockManager.Infrastructure.Connectors.Socket.Connection;
+using StockManager.Infrastructure.Connectors.Socket.Connection.HitBtc;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Test
 {

@@ -4,27 +4,32 @@ using System.Linq;
 using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Common.Enums;
-using StockManager.Infrastructure.Connectors.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
-using StockManager.Infrastructure.Connectors.Socket.Connection;
-using StockManager.Infrastructure.Connectors.Socket.Models.NotificationParameters;
-using StockManager.Infrastructure.Connectors.Socket.Models.RequestParameters;
-using StockManager.Infrastructure.Connectors.Socket.Models.Market;
-using StockManager.Infrastructure.Connectors.Socket.Models.Trading;
+using StockManager.Infrastructure.Connectors.Socket.Connection.HitBtc;
+using StockManager.Infrastructure.Connectors.Socket.Models.HitBtc.Market;
+using StockManager.Infrastructure.Connectors.Socket.Models.HitBtc.NotificationParameters;
+using StockManager.Infrastructure.Connectors.Socket.Models.HitBtc.RequestParameters;
+using StockManager.Infrastructure.Connectors.Socket.Models.HitBtc.Trading;
 using StockManager.Infrastructure.Utilities.Configuration.Services;
 
 namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 {
 	public class StockSocketConnector : IStockSocketConnector
 	{
-		private HitBtcConnection _connection;
+		private ApiConnection _connection;
 
 		public StockSocketConnector(ConfigurationService configurationService)
 		{
-			_connection = new HitBtcConnection(configurationService.GetExchangeConnectionSettings());
+			_connection = new ApiConnection(configurationService.GetExchangeConnectionSettings());
 		}
 
-		public async Task Connect()
+		public void Connect()
+		{
+			var connectTask = ConnectAsync();
+			connectTask.RunSynchronously();
+		}
+
+		public async Task ConnectAsync()
 		{
 			if (_connection == null)
 				return;
@@ -96,26 +101,6 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 				callback(notificationParameters.Candles
 					.Select(CandleMap.ToOuterModel)
 					.ToList());
-			});
-		}
-
-		public async Task SubscribeOnTickers(string currencyPairId, Action<Infrastructure.Common.Models.Market.Ticker> callback)
-		{
-			var request = new SocketSubscriptionRequest<TickerRequestParameters>
-			{
-				RequestMethodName = "subscribeTicker",
-				SnapshotMethodName = null,
-				NotificationMethodName = "ticker",
-				UnsubscribeMethodName = "unsubscribeTicker",
-				RequestParameters = new TickerRequestParameters
-				{
-					CurrencyPairId = currencyPairId,
-				}
-			};
-
-			await _connection.Subscribe<Ticker>(request, ticker =>
-			{
-				callback(ticker.ToOuterModel());
 			});
 		}
 
@@ -191,33 +176,6 @@ namespace StockManager.Infrastructure.Connectors.Socket.Services.HitBtc
 
 				callback(result);
 			});
-		}
-
-		public async Task<Infrastructure.Common.Models.Trading.Order> CreateOrder(Infrastructure.Common.Models.Trading.Order order, bool usePostOnly)
-		{
-			var orderInner = order.ToInnerModel();
-			orderInner.PostOnly = usePostOnly;
-
-			var request = new SingleSocketRequest<CreateOrderRequestParameters>
-			{
-				RequestMethodName = "newOrder",
-				NeedResponse = false,
-				RequestParameters = new CreateOrderRequestParameters
-				{
-					ClientId = orderInner.ClientId,
-					CurrencyPairId = orderInner.CurrencyPairId,
-					Price = orderInner.Price,
-					Quantity = orderInner.Quantity,
-					OrderSide = orderInner.OrderSide,
-					StopPrice = orderInner.StopPrice,
-					OrderType = orderInner.OrderType,
-					ExpireTime = orderInner.ExpireTime,
-					TimeInForce = orderInner.TimeInForce,
-					PostOnly = usePostOnly,
-				}
-			};
-			await _connection.DoRequest<Order>(request);
-			return order;
 		}
 
 		public async Task RequestCancelOrder(Infrastructure.Common.Models.Trading.Order order)

@@ -9,15 +9,14 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public interface IStockSocketConnector
 	{
-		Task Connect();
+		void Connect();
+		Task ConnectAsync();
 		Task Disconnect();
 		
 		Task SubscribeOnCandles(string currencyPairId, CandlePeriod period, Action<IList<Candle>> callback, int limit = 30);
-		Task SubscribeOnTickers(string currencyPairId, Action<Ticker> callback);
 		Task SubscribeOnOrderBook(string currencyPairId, Action<IList<OrderBookItem>> callback);
 		Task SubscribeOrders(CurrencyPair targetCurrencyPair, Action<Order> callback);
 
-		Task<Order> CreateOrder(Order order, bool usePostOnly);
 		Task RequestCancelOrder(Order order);
 		Task RequestReplaceOrder(Order changedOrder, Guid newClientId, Action replacementErrorCallback);
 		

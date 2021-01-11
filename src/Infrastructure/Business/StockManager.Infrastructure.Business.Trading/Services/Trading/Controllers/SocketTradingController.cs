@@ -40,6 +40,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 		private ConcurrentDictionary<string, TradingPositionWorker> _activePositionWorkers;
 
+		public event EventHandler<UnhandledExceptionEventArgs> Exception;
+
 		public SocketTradingController(
 			IRepository<Order> orderRepository,
 			IStockSocketConnector stockSocketConnector,
@@ -64,7 +66,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			_loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
 		}
 
-		public event EventHandler<UnhandledExceptionEventArgs> Exception;
+		
 
 		public void StartTrading()
 		{
@@ -77,7 +79,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 				tradingSettings.BaseOrderSide = OrderSide.Buy;
 				_configurationService.UpdateTradingSettings(tradingSettings);
 
-				_stockSocketConnector.Connect().Wait(cancelTokenSource.Token);
+				_stockSocketConnector.ConnectAsync().Wait(cancelTokenSource.Token);
 				_stockSocketConnector.SubscribeErrors(exception =>
 				{
 					OnException(new UnhandledExceptionEventArgs(exception, false));
@@ -136,7 +138,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 		private async Task StartTradingInner(CancellationToken cancellationToken)
 		{
-			await _stockSocketConnector.Connect();
+			await _stockSocketConnector.ConnectAsync();
 
 			await _tradingPositionService.SyncExistingPositionsWithStock(positionChangedEventArgs => _tradingEventsObserver.RaisePositionChanged(positionChangedEventArgs));
 			await LoadExistingPositions();

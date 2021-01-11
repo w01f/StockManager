@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Tinkoff.Trading.OpenApi" Version="1.6.0" />
     <PackageReference Include="Websocket.Client" Version="4.3.15" />
   </ItemGroup>
 

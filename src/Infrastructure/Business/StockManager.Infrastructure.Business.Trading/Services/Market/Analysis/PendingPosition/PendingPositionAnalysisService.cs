@@ -44,13 +44,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				Period = 14
 			};
 
-			var higherPeriodMACDSettings = new MACDSettings
-			{
-				EMAPeriod1 = 12,
-				EMAPeriod2 = 26,
-				SignalPeriod = 9
-			};
-
 			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
 				activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 				settings.Period,
@@ -120,16 +113,22 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			if (currentRSIValue?.Value == null)
 				throw new NoNullAllowedException("No WilliamR values calculated");
 
-			var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
-					higherPeriodLastCandles,
-					higherPeriodMACDSettings.EMAPeriod1,
-					higherPeriodMACDSettings.EMAPeriod2,
-					higherPeriodMACDSettings.SignalPeriod)
-				.OfType<MACDValue>()
-				.ToList();
+			//var higherPeriodMACDSettings = new MACDSettings
+			//{
+			//	EMAPeriod1 = 12,
+			//	EMAPeriod2 = 26,
+			//	SignalPeriod = 9
+			//};
+			//var higherPeriodMACDValues = _indicatorComputingService.ComputeMACD(
+			//		higherPeriodLastCandles,
+			//		higherPeriodMACDSettings.EMAPeriod1,
+			//		higherPeriodMACDSettings.EMAPeriod2,
+			//		higherPeriodMACDSettings.SignalPeriod)
+			//	.OfType<MACDValue>()
+			//	.ToList();
+			//var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
 
-			var higherPeriodCurrentMACDValue = higherPeriodMACDValues.ElementAtOrDefault(higherPeriodMACDValues.Count - 1);
-			var rsiTopBorder = 100;//45;
+			var rsiTopBorder = 45;
 								   //if (higherPeriodCurrentMACDValue?.MACD > 0 && higherPeriodCurrentMACDValue.Histogram >= 0)
 								   //	rsiTopBorder = 65;
 								   //if (higherPeriodCurrentMACDValue?.MACD > 0 || higherPeriodCurrentMACDValue?.Histogram >= 0)
