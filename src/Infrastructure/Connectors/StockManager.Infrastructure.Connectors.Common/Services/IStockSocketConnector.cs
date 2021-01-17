@@ -12,6 +12,9 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 		void Connect();
 		Task ConnectAsync();
 		Task Disconnect();
+
+		Task<IList<CurrencyPair>> GetCurrencyPairs();
+		Task<CurrencyPair> GetCurrencyPair(string id);
 		
 		Task SubscribeOnCandles(string currencyPairId, CandlePeriod period, Action<IList<Candle>> callback, int limit = 30);
 		Task SubscribeOnOrderBook(string currencyPairId, Action<IList<OrderBookItem>> callback);
