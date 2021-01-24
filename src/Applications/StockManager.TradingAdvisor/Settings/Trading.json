@@ -1,0 +1,5 @@
+{
+    "QuoteCurrencies": [ "SBER", "TCSG", "YNDX", "ROSN", "LKOH", "RTKM", "ALRS", "AFLT", "VTBR", "BANE", "GAZP", "DSKY", "LNTA", "MGNT", "MVID", "NVTK", "MTSS", "HYDR", "BA", "FB", "KO", "BAC", "CYX", "JNJ", "MCD", "MSFT", "USDRUB" ],
+	"MinCurrencyPairTradingVolumeInBTC": 10000.0,
+	"MaxOrderUsingBalancePart": 0.05
+}

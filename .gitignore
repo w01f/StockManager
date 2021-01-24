@@ -263,3 +263,4 @@ __pycache__/
 /src/Applications/StockManager.SandBox/Settings/ExchangeConnection.json
 /src/Applications/StockManager.TradingBot/Settings/ExchangeConnection.json
 /test/Infrastructure/Connectors/StockManager.Infrastructure.Connectors.Socket.Test/Settings/Tinkoff/ExchangeConnection.json
+/src/Applications/StockManager.TradingAdvisor/Settings/ExchangeConnection.json

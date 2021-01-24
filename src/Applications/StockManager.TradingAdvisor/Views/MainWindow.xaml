@@ -1,0 +1,58 @@
+﻿<Window x:Class="StockManager.TradingAdvisor.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:StockManager.TradingAdvisor.ViewModels"
+        xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
+        xmlns:converters="clr-namespace:StockManager.TradingAdvisor.Converters"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance IsDesignTimeCreatable=True, Type={x:Type viewModels:MainViewModel}}"
+        Title="Trading Advisor" Height="450" Width="800" WindowStartupLocation="CenterScreen" WindowState="Normal">
+
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Window.Resources>
+
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="Loaded">
+            <i:InvokeCommandAction Command="{Binding LoadCommand}" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ListView Grid.Row="0" ItemsSource="{Binding Instruments}">
+            <ListView.Resources>
+                <Style TargetType="{x:Type ListViewItem}">
+                    <Setter Property="Focusable" Value="false"/>
+                    <!-- ReSharper disable Xaml.BindingWithContextNotResolved -->    
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsSuggestedToBuy}" Value="true">
+                            <Setter Property="Background" Value="LightGreen" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsSuggestedToSell}" Value="true">
+                            <Setter Property="Background" Value="Orange" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                    
+                </Style>
+            </ListView.Resources>
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn DisplayMemberBinding="{Binding Path=CurrencyPair.Id}" Header="Instrument Id" Width="200"/>
+                    <GridViewColumn DisplayMemberBinding="{Binding Path=CurrencyPair.BaseCurrencyId}" Header="Instrument Name"  Width="200"/>
+                    <GridViewColumn DisplayMemberBinding="{Binding Path=CurrencyPair.QuoteCurrencyId}" Header="Currency"  Width="100"/>
+                    <GridViewColumn DisplayMemberBinding="{Binding Path=IsSuggestedToBuy}" Header="Buy"  Width="50"/>
+                    <GridViewColumn DisplayMemberBinding="{Binding Path=IsSuggestedToSell}" Header="Sell"  Width="50"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+        <TextBox Grid.Row="1" Text="{Binding ExceptionText}" TextWrapping="Wrap" IsReadOnly="True" Visibility="{Binding ExceptionHandled, Converter = {StaticResource BoolToVisibilityConverter}}" Height="100"/>
+    </Grid>
+</Window>

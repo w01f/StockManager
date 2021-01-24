@@ -11,17 +11,14 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 {
 	public class OrderBookLoadingService
 	{
-		private readonly IStockRestConnector _stockRestConnector;
 		private readonly IStockSocketConnector _stockSocketConnector;
 
 		private readonly ConcurrentDictionary<string, List<OrderBookItem>> _orderBooks = new ConcurrentDictionary<string, List<OrderBookItem>>();
 
 		public event EventHandler<OrderBookUpdatedEventArgs> OrderBookUpdated;
 
-		public OrderBookLoadingService(IStockRestConnector stockRestConnector,
-			IStockSocketConnector stockSocketConnector)
+		public OrderBookLoadingService(IStockSocketConnector stockSocketConnector)
 		{
-			_stockRestConnector = stockRestConnector ?? throw new ArgumentNullException(nameof(stockRestConnector));
 			_stockSocketConnector = stockSocketConnector ?? throw new ArgumentNullException(nameof(stockSocketConnector));
 		}
 
@@ -52,12 +49,11 @@ namespace StockManager.Infrastructure.Connectors.Common.Services
 			});
 		}
 
-		public async Task<IList<OrderBookItem>> GetOrderBook(string currencyPairId, OrderBookItemType itemType, int limit = 0)
+		public IList<OrderBookItem> GetOrderBook(string currencyPairId, OrderBookItemType itemType, int limit = 0)
 		{
 			if (_orderBooks.ContainsKey(currencyPairId) && _orderBooks[currencyPairId].Any())
 				return _orderBooks[currencyPairId].Where(item => item.Type == itemType).ToList();
-
-			return await _stockRestConnector.GetOrderBook(currencyPairId, itemType, limit);
+			return new List<OrderBookItem>();
 		}
 
 		private void OnOrderBookUpdated(string currencyPairId)

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq;
-using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Connectors.Common.Services;
 
@@ -15,11 +14,11 @@ namespace StockManager.Infrastructure.Business.Collector.Services
 			_candleLoadingService = candleLoadingService;
 		}
 
-		public async Task LoadMarketData(string currencyPairId, int candleLimit)
+		public void LoadMarketData(string currencyPairId, int candleLimit)
 		{
 			foreach (var candlePeriod in Enum.GetValues(typeof(CandlePeriod)).Cast<CandlePeriod>())
 			{
-				await _candleLoadingService.LoadCandles(currencyPairId,
+				_candleLoadingService.LoadCandles(currencyPairId,
 					candlePeriod,
 					candleLimit,
 					DateTime.UtcNow);

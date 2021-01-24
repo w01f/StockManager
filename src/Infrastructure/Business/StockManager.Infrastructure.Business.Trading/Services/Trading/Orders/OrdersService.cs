@@ -64,7 +64,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						order.StopPrice = null;
 					}
 
-					var nearestBidSupportPrice = await _orderBookLoadingService.GetNearestBidSupportPrice(order.CurrencyPair);
+					var nearestBidSupportPrice = _orderBookLoadingService.GetNearestBidSupportPrice(order.CurrencyPair);
 					order.Price = nearestBidSupportPrice + order.CurrencyPair.TickSize;
 				}
 
@@ -118,7 +118,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Orders
 						order.StopPrice = null;
 					}
 
-					var nearestAskSupportPrice = await _orderBookLoadingService.GetNearestAskSupportPrice(currencyPair);
+					var nearestAskSupportPrice = _orderBookLoadingService.GetNearestAskSupportPrice(currencyPair);
 					order.Price = nearestAskSupportPrice - currencyPair.TickSize;
 				}
 

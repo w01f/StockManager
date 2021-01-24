@@ -73,7 +73,7 @@ namespace StockManager.Dashboard.Views
 		#endregion
 
 		#region Event Handlers
-		private async void OnFormShown(Object sender, EventArgs e)
+		private void OnFormShown(Object sender, EventArgs e)
 		{
 			//await LoadCurrencyPairs();
 
@@ -81,7 +81,7 @@ namespace StockManager.Dashboard.Views
 			tabbedView.AddDocument(dashboard);
 			try
 			{
-				await dashboard.LoadData();
+				dashboard.LoadData();
 			}
 			catch (Exception exception)
 			{
@@ -90,7 +90,7 @@ namespace StockManager.Dashboard.Views
 			tabbedView.ActivateDocument(dashboard);
 		}
 
-		private async void OnAccordionElementClick(object sender, ElementClickEventArgs e)
+		private void OnAccordionElementClick(object sender, ElementClickEventArgs e)
 		{
 			if (e.Element == null) return;
 			if (e.Element.Style == ElementStyle.Group) return;
@@ -104,7 +104,7 @@ namespace StockManager.Dashboard.Views
 				tabbedView.AddDocument(existedDashboard);
 				try
 				{
-					await existedDashboard.LoadData();
+					existedDashboard.LoadData();
 				}
 				catch (Exception exception)
 				{

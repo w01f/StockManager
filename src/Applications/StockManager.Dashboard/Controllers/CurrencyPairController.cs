@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using Ninject;
+﻿using Ninject;
 using StockManager.Infrastructure.Business.Chart.Models;
 using StockManager.Infrastructure.Business.Chart.Services;
 
@@ -15,9 +14,9 @@ namespace StockManager.Dashboard.Controllers
 			_chartService = chartService;
 		}
 
-		public async Task<ChartDataset> GetChartData(ChartSettings settings)
+		public ChartDataset GetChartData(ChartSettings settings)
 		{
-			return await _chartService.GetChartData(settings);
+			return _chartService.GetChartData(settings);
 		}
 	}
 }

@@ -233,7 +233,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 
 		private async Task CheckOutForNewPosition(CurrencyPair tickerCurrencyPair)
 		{
-			var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(tickerCurrencyPair);
+			var marketInfo = _marketNewPositionAnalysisService.ProcessMarketPosition(tickerCurrencyPair);
 			if (marketInfo.PositionType != NewMarketPositionType.Wait && !_activePositionWorkers.ContainsKey(tickerCurrencyPair.Id))
 			{
 				var worker = _tradingPositionWorkerFactory.CreateWorkerWithNewPosition(OnPositionChanged);

@@ -1,6 +1,5 @@
 ﻿using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
 using StockManager.Infrastructure.Common.Enums;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
@@ -9,10 +8,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 {
 	static class MarketDataConnectorExtensions
 	{
-		public static async Task<decimal> GetNearestBidSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		public static decimal GetNearestBidSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 20))
-				.ToList();
+			var orderBookBidItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 20).ToList();
 
 			if (!orderBookBidItems.Any())
 				throw new NoNullAllowedException("Couldn't load order book");
@@ -32,10 +30,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 		}
 
-		public static async Task<decimal> GetNearestAskSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		public static decimal GetNearestAskSupportPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 20))
-				.ToList();
+			var orderBookAskItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 20).ToList();
 
 			if (!orderBookAskItems.Any())
 				throw new NoNullAllowedException("Couldn't load order book");
@@ -55,13 +52,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 		}
 
-		public static async Task<decimal> GetTopMeaningfulBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		public static decimal GetTopMeaningfulBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5))
-				.ToList();
+			var orderBookBidItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5).ToList();
 
 			if (!orderBookBidItems.Any())
-				throw new NoNullAllowedException("Couldn't load order book");
+				return 0;
 
 			var maxBidSize = orderBookBidItems
 				.Max(item => item.Size);
@@ -75,10 +71,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 			return topMeaningfulBidPrice;
 		}
 
-		public static async Task<decimal> GetTopBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
+		public static decimal GetTopBidPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
 		{
-			var orderBookBidItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5))
-				.ToList();
+			var orderBookBidItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Bid, 5).ToList();
 
 			if (!orderBookBidItems.Any())
 				throw new NoNullAllowedException("Couldn't load order book");
@@ -90,10 +85,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 				.First();
 		}
 
-		public static async Task<decimal> GetBottomMeaningfulAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
+		public static decimal GetBottomMeaningfulAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5))
-				.ToList();
+			var orderBookAskItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5).ToList();
 
 			if (!orderBookAskItems.Any())
 				throw new NoNullAllowedException("Couldn't load order book");
@@ -110,13 +104,12 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Extensions.Conne
 			return bottomMeaningfulAskPrice;
 		}
 
-		public static async Task<decimal> GetBottomAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
+		public static decimal GetBottomAskPrice(this OrderBookLoadingService orderBookLoadingService, CurrencyPair currencyPair, int skip = 0)
 		{
-			var orderBookAskItems = (await orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5))
-				.ToList();
+			var orderBookAskItems = orderBookLoadingService.GetOrderBook(currencyPair.Id, OrderBookItemType.Ask, 5).ToList();
 
 			if (!orderBookAskItems.Any())
-				throw new NoNullAllowedException("Couldn't load order book");
+				return 0;
 
 			var bottomMeaningfulAskPrice = orderBookAskItems
 				.OrderBy(item => item.Price)

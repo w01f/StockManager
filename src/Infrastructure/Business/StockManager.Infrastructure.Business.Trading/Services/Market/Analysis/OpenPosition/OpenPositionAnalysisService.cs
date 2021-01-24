@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
 using StockManager.Domain.Core.Enums;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
@@ -35,7 +34,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
-		public async Task<OpenPositionInfo> ProcessMarketPosition(TradingPosition activeTradingPosition)
+		public OpenPositionInfo ProcessMarketPosition(TradingPosition activeTradingPosition)
 		{
 			var settings = _configurationService.GetTradingSettings();
 			var moment = settings.Moment ?? DateTime.UtcNow;
@@ -67,31 +66,31 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				2
 			}.Max();
 
-			var targetPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+			var targetPeriodLastCandles = _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period,
 					candleRangeSize,
-					moment))
+					moment)
 				.ToList();
 
 			if (!targetPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
 			var currentTargetPeriodCandle = targetPeriodLastCandles.Last();
 
-			var higherPeriodLastCandles = (await _candleLoadingService.LoadCandles(
+			var higherPeriodLastCandles = _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetHigherFramePeriod(),
 					rsiSettings.Period,
-					moment))
+					moment)
 				.ToList();
 			if (!higherPeriodLastCandles.Any())
 				throw new NoNullAllowedException("No candles loaded");
 
-			var lowerPeriodCandles = (await _candleLoadingService.LoadCandles(
+			var lowerPeriodCandles = _candleLoadingService.LoadCandles(
 					activeTradingPosition.OpenPositionOrder.CurrencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
 					rsiSettings.Period + 1,
-					moment))
+					moment)
 				.ToList();
 
 			if (!lowerPeriodCandles.Any())
@@ -162,11 +161,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				if (activeTradingPosition.ClosePositionOrder.OrderStateType == OrderStateType.Pending ||
 					activeTradingPosition.ClosePositionOrder.OrderStateType == OrderStateType.Suspended)
 				{
-					var bottomMeaningfulAskPrice = await _orderBookLoadingService.GetBottomMeaningfulAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair);
+					var bottomMeaningfulAskPrice = _orderBookLoadingService.GetBottomMeaningfulAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair);
 
 					updatePositionInfo.ClosePrice = bottomMeaningfulAskPrice - activeTradingPosition.ClosePositionOrder.CurrencyPair.TickSize;
 
-					var topBidPrice = await _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
+					var topBidPrice = _orderBookLoadingService.GetTopBidPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
 
 					updatePositionInfo.CloseStopPrice = !activeTradingPosition.ClosePositionOrder.StopPrice.HasValue || topBidPrice >= activeTradingPosition.ClosePositionOrder.StopPrice ?
 						topBidPrice :
@@ -174,7 +173,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				}
 				else
 				{
-					var bottomAskPrice = await _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
+					var bottomAskPrice = _orderBookLoadingService.GetBottomAskPrice(activeTradingPosition.ClosePositionOrder.CurrencyPair, 3);
 
 					updatePositionInfo.ClosePrice = activeTradingPosition.ClosePositionOrder.Price <= bottomAskPrice ?
 						activeTradingPosition.ClosePositionOrder.Price :

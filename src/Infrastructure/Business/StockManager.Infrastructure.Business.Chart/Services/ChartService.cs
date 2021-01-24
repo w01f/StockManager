@@ -1,5 +1,4 @@
 ﻿using System.Linq;
-using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Common;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Chart.Models;
@@ -27,15 +26,15 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 			_configurationService = configurationService;
 		}
 
-		public async Task<ChartDataset> GetChartData(ChartSettings settings)
+		public ChartDataset GetChartData(ChartSettings settings)
 		{
 			var chartDataset = new ChartDataset();
 
-			chartDataset.Candles = (await _candleLoadingService.LoadCandles(
+			chartDataset.Candles = _candleLoadingService.LoadCandles(
 				settings.CurrencyPairId,
 				settings.Period,
 				settings.CandleRangeSize,
-				settings.CurrentMoment)).ToList();
+				settings.CurrentMoment).ToList();
 
 			foreach (var indicatorSettings in settings.Indicators)
 			{
@@ -43,12 +42,11 @@ namespace StockManager.Infrastructure.Business.Chart.Services
 				indicatorDataset.Settings = indicatorSettings;
 
 				var candles = indicatorSettings.CandlePeriod != settings.Period ?
-					(await _candleLoadingService.LoadCandles(
+					_candleLoadingService.LoadCandles(
 						settings.CurrencyPairId,
 						indicatorSettings.CandlePeriod,
 						settings.CandleRangeSize,
-						settings.CurrentMoment))
-					.ToList() :
+						settings.CurrentMoment).ToList() :
 					chartDataset.Candles;
 
 				switch (indicatorSettings.Type)

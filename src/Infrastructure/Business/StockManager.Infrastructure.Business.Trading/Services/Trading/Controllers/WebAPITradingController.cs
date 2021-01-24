@@ -113,7 +113,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						var nextPosition = tradingPosition.Clone();
 						if (tradingPosition.IsOpenPosition)
 						{
-							var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(tradingPosition);
+							var marketInfo = _marketOpenPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
 								nextPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
 							else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
@@ -130,7 +130,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						}
 						else if (tradingPosition.IsPendingPosition)
 						{
-							var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(tradingPosition);
+							var marketInfo = _marketPendingPositionAnalysisService.ProcessMarketPosition(tradingPosition);
 							if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
 								nextPosition.ChangePosition((UpdateOrderInfo)marketInfo);
 							else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
@@ -206,7 +206,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 						if (tradingBalance?.Available <= 0)
 							continue;
 
-						var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
+						var marketInfo = _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
 						if (marketInfo.PositionType != NewMarketPositionType.Wait)
 						{
 							var newPosition = await _tradingPositionService.OpenPosition((NewOrderPositionInfo)marketInfo);

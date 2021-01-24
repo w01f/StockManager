@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
 using DevExpress.XtraCharts;
 using DevExpress.XtraEditors;
 using Ninject;
@@ -37,7 +36,7 @@ namespace StockManager.Dashboard.Views
 			_currencyPairController = currencyPairController;
 		}
 
-		public async Task LoadData()
+		public void LoadData()
 		{
 			try
 			{
@@ -80,7 +79,7 @@ namespace StockManager.Dashboard.Views
 
 				ConfigureIndicatorCharts(chartSettings);
 
-				var chartDataset = await _currencyPairController.GetChartData(chartSettings);
+				var chartDataset = _currencyPairController.GetChartData(chartSettings);
 
 				chartControl.DataSource = BuildOutputDataSet(chartDataset, chartSettings);
 				chartControl.RefreshData();

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,6 +44,17 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			_marketNewPositionAnalysisService = marketNewPositionAnalysisService ?? throw new ArgumentNullException(nameof(marketNewPositionAnalysisService));
 			_configurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 			_loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+		}
+
+		public async Task<IList<CurrencyPair>> GetActiveCurrencyPairs()
+		{
+			await _stockSocketConnector.ConnectAsync();
+
+			var tradingSettings = _configurationService.GetTradingSettings();
+			var allCurrencyPairs = await _stockSocketConnector.GetCurrencyPairs();
+			var tradingCurrencyPairs = allCurrencyPairs.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId => String.Equals(item.BaseCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)));
+
+			return tradingCurrencyPairs.ToList();
 		}
 
 		public void StartMonitoring()
@@ -118,8 +130,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			_stockSocketConnector.Connect();
 
 			var tradingSettings = _configurationService.GetTradingSettings();
-			var allCurrencyPairs = await _stockSocketConnector.GetCurrencyPairs();
-			var tradingCurrencyPairs = allCurrencyPairs.Where(item => tradingSettings.QuoteCurrencies.Any(currencyId => String.Equals(item.QuoteCurrencyId, currencyId, StringComparison.OrdinalIgnoreCase)));
+			var tradingCurrencyPairs = await GetActiveCurrencyPairs();
 
 			var periodsForAnalysis = new[]
 			{
@@ -136,7 +147,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 					if (e.Period != tradingSettings.Period)
 						return;
 
-					CheckOutForNewPosition(currencyPair).Wait(cancellationToken);
+					CheckOutForNewPosition(currencyPair);
 				};
 			}
 
@@ -145,9 +156,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Controll
 			await _stockSocketConnector.Disconnect();
 		}
 
-		private async Task CheckOutForNewPosition(CurrencyPair currencyPair)
+		private void CheckOutForNewPosition(CurrencyPair currencyPair)
 		{
-			var marketInfo = await _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
+			var marketInfo = _marketNewPositionAnalysisService.ProcessMarketPosition(currencyPair);
 			if (marketInfo.PositionType != NewMarketPositionType.Wait && !_suggestedCurrencyPairs.ContainsKey(currencyPair.Id))
 			{
 				if (_suggestedCurrencyPairs.TryAdd(currencyPair.Id, currencyPair))

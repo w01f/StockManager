@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Data;
 using System.Linq;
-using System.Threading.Tasks;
 using StockManager.Infrastructure.Analysis.Common.Models;
 using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Enums;
@@ -29,10 +28,10 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			ConfigurationService = configurationService ?? throw new ArgumentNullException(nameof(configurationService));
 		}
 
-		public async Task<NewPositionInfo> ProcessMarketPosition(CurrencyPair currencyPair)
+		public NewPositionInfo ProcessMarketPosition(CurrencyPair currencyPair)
 		{
 			NewPositionInfo newPositionInfo;
-			var conditionCheckingResult = await CheckConditions(currencyPair);
+			var conditionCheckingResult = CheckConditions(currencyPair);
 
 			switch (conditionCheckingResult.ResultType)
 			{
@@ -40,9 +39,9 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 					var buyPositionInfo = new NewOrderPositionInfo(NewMarketPositionType.Buy);
 					buyPositionInfo.CurrencyPairId = currencyPair.Id;
 
-					buyPositionInfo.OpenPrice = await OrderBookLoadingService.GetTopMeaningfulBidPrice(currencyPair);
+					buyPositionInfo.OpenPrice = OrderBookLoadingService.GetTopMeaningfulBidPrice(currencyPair);
 
-					buyPositionInfo.OpenStopPrice = await OrderBookLoadingService.GetBottomAskPrice(currencyPair, 1);
+					buyPositionInfo.OpenStopPrice = OrderBookLoadingService.GetBottomAskPrice(currencyPair, 1);
 
 					buyPositionInfo.ClosePrice =
 					buyPositionInfo.CloseStopPrice =
@@ -60,7 +59,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			return newPositionInfo;
 		}
 
-		protected override async Task<ConditionCheckingResult> CheckConditions(CurrencyPair currencyPair)
+		protected override ConditionCheckingResult CheckConditions(CurrencyPair currencyPair)
 		{
 			var settings = ConfigurationService.GetTradingSettings();
 			var moment = settings.Moment ?? DateTime.UtcNow;
@@ -74,11 +73,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				SignalPeriod = 9
 			};
 
-			var firstFrameCandles = (await CandleLoadingService.LoadCandles(
+			var firstFrameCandles = CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period.GetHigherFramePeriod(),
 				firstFrameMACDSettings.RequiredCandleRangeSize,
-				moment))
+				moment)
 				.OrderBy(candle => candle.Moment)
 				.ToList();
 
@@ -114,11 +113,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 				Period = 14
 			};
 
-			var secondFrameTargetPeriodCandles = (await CandleLoadingService.LoadCandles(
+			var secondFrameTargetPeriodCandles =  CandleLoadingService.LoadCandles(
 				currencyPair.Id,
 				settings.Period,
 				rsiSettings.Period + 2,
-				moment))
+				moment)
 				.OrderBy(candle => candle.Moment)
 				.ToList();
 
@@ -130,11 +129,11 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 			if (secondFrameCurrentCandle?.VolumeInBaseCurrency == null)
 				return conditionCheckingResult;
 
-			var lowerPeriodCandles = (await CandleLoadingService.LoadCandles(
+			var lowerPeriodCandles =  CandleLoadingService.LoadCandles(
 					currencyPair.Id,
 					settings.Period.GetLowerFramePeriod(),
 					rsiSettings.Period,
-					moment))
+					moment)
 				.OrderBy(candle => candle.Moment)
 				.ToList();
 

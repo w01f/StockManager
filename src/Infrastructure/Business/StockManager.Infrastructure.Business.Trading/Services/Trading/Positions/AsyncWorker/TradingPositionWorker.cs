@@ -115,7 +115,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				var nextPosition = Position.Clone();
 				if (Position.IsOpenPosition)
 				{
-					var marketInfo = await _marketOpenPositionAnalysisService.ProcessMarketPosition(Position);
+					var marketInfo = _marketOpenPositionAnalysisService.ProcessMarketPosition(Position);
 					if (marketInfo.PositionType == OpenMarketPositionType.UpdateOrder)
 						nextPosition.ChangePosition((UpdateClosePositionInfo)marketInfo);
 					else if (marketInfo.PositionType == OpenMarketPositionType.FixStopLoss)
@@ -132,7 +132,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				}
 				else if (Position.IsPendingPosition)
 				{
-					var marketInfo = await _marketPendingPositionAnalysisService.ProcessMarketPosition(Position);
+					var marketInfo = _marketPendingPositionAnalysisService.ProcessMarketPosition(Position);
 					if (marketInfo.PositionType == PendingMarketPositionType.UpdateOrder)
 						nextPosition.ChangePosition((UpdateOrderInfo)marketInfo);
 					else if (marketInfo.PositionType == PendingMarketPositionType.CancelOrder)
@@ -177,7 +177,7 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 				{
 					if (Position.OpenPositionOrder.OrderStateType == OrderStateType.New)
 					{
-						var newPrice = await _orderBookLoadingService.GetTopBidPrice(Position.OpenPositionOrder.CurrencyPair, 3);
+						var newPrice = _orderBookLoadingService.GetTopBidPrice(Position.OpenPositionOrder.CurrencyPair, 3);
 						if (newPrice > Position.OpenPositionOrder.Price)
 						{
 							var nextPosition = Position.Clone();
@@ -189,8 +189,8 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Trading.Position
 					}
 					else if (Position.ClosePositionOrder.OrderStateType == OrderStateType.New)
 					{
-						var newPrice = await _orderBookLoadingService.GetBottomAskPrice(Position.OpenPositionOrder.CurrencyPair, 3);
-						if (newPrice < Position.ClosePositionOrder.Price)
+						var newPrice = _orderBookLoadingService.GetBottomAskPrice(Position.OpenPositionOrder.CurrencyPair, 3);
+						if (newPrice > 0 && newPrice < Position.ClosePositionOrder.Price)
 						{
 							var nextPosition = Position.Clone();
 							nextPosition.ClosePositionOrder.Price = newPrice;

@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks;
-using StockManager.Infrastructure.Analysis.Common.Services;
+﻿using StockManager.Infrastructure.Analysis.Common.Services;
 using StockManager.Infrastructure.Business.Trading.Models.Market.Analysis;
 using StockManager.Infrastructure.Common.Models.Market;
 using StockManager.Infrastructure.Connectors.Common.Services;
@@ -14,6 +13,6 @@ namespace StockManager.Infrastructure.Business.Trading.Services.Market.Analysis.
 		protected IIndicatorComputingService IndicatorComputingService { get; set; }
 		protected ConfigurationService ConfigurationService { get; set; }
 
-		protected abstract Task<ConditionCheckingResult> CheckConditions(CurrencyPair currencyPair);
+		protected abstract ConditionCheckingResult CheckConditions(CurrencyPair currencyPair);
 	}
 }
